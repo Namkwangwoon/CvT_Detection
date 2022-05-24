@@ -16,7 +16,11 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 
 from timm.models.layers import DropPath, trunc_normal_
+from core.anchors import Anchors
+from core import losses
+from core.utils import BBoxTransform, ClipBoxes
 
+from torchvision.ops import nms
 from .registry import register_model
 
 
@@ -542,8 +546,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
         trunc_normal_(self.head.weight, std=0.02)
 
-        self.regressionModel = RegressionModel(64)
-        self.classificationModel = ClassificationModel(64, num_classes=80)
+        self.regressionModel = RegressionModel(256)
+        self.classificationModel = ClassificationModel(256, num_classes=80)
 
         prior = 0.01
 
@@ -552,6 +556,12 @@ class ConvolutionalVisionTransformer(nn.Module):
 
         self.regressionModel.output.weight.data.fill_(0)
         self.regressionModel.output.bias.data.fill_(0)
+
+        self.anchors = Anchors()
+        self.focalLoss = losses.FocalLoss()
+
+        self.regressBoxes = BBoxTransform()
+        self.clipBoxes = ClipBoxes()
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
@@ -604,6 +614,10 @@ class ConvolutionalVisionTransformer(nn.Module):
                         )
 
                     need_init_state_dict[k] = v
+
+            del need_init_state_dict['head.weight']
+            del need_init_state_dict['head.bias']
+            
             self.load_state_dict(need_init_state_dict, strict=False)
 
     @torch.jit.ignore
@@ -616,17 +630,15 @@ class ConvolutionalVisionTransformer(nn.Module):
         return layers
 
     def forward_features(self, x):
-        print('========== CvT forward features ==========')
-        print('features shape : ', x.shape)
 
         x0, cls_tokens0 = getattr(self, f'stage0')(x)
-        print(f'stage 0 : ', x0.shape)
+        # print(f'stage 0 : ', x0.shape)
 
         x1, cls_tokens1 = getattr(self, f'stage1')(x0)
-        print(f'stage 1 : ', x1.shape)
+        # print(f'stage 1 : ', x1.shape)
 
         x2, cls_tokens2 = getattr(self, f'stage2')(x1)
-        print(f'stage 2 : ', x2.shape)
+        # print(f'stage 2 : ', x2.shape)
 
         '''
         For Second Training
@@ -660,15 +672,21 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print(x1.shape)
         # print(x2.shape)
 
-        x0 = nn.Conv2d(x0.shape[1], 64, kernel_size=1, stride=1).cuda()(x0)
-        x1 = nn.Conv2d(x1.shape[1], 64, kernel_size=1, stride=1).cuda()(x1)
-        x2 = nn.Conv2d(x2.shape[1], 64, kernel_size=1, stride=1).cuda()(x2)
+        x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
+        x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
+        x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
+
 
         return x0, x1, x2
 
-    def forward(self, x):
-        x = self.forward_features(x)
-        # x = self.head(x)
+    def forward(self, inputs):
+        if self.training:
+            img_batch, annotations = inputs
+        else:
+            img_batch = inputs
+
+        anchors = self.anchors(img_batch)
+        x = self.forward_features(img_batch)
 
         # print('x0 : ', x[0].shape)
         # regression = self.regressionModel(x[0])
@@ -685,10 +703,53 @@ class ConvolutionalVisionTransformer(nn.Module):
         regression = torch.cat([self.regressionModel(feature) for feature in x], dim=1)
         classification = torch.cat([self.classificationModel(feature) for feature in x], dim=1)
 
-        print('regression : ', regression.shape)
-        print('classification : ', classification.shape)
+        # print('regression : ', regression.shape)
+        # print('classification : ', classification.shape)
 
-        return x
+        if self.training:
+            return self.focalLoss(classification, regression, anchors, annotations)
+        else:
+            # print('inputs : ', img_batch.shape)
+            transformed_anchors = self.regressBoxes(anchors, regression)
+            transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)
+
+            finalResult = [[], [], []]
+
+            finalScores = torch.Tensor([])
+            finalAnchorBoxesIndexes = torch.Tensor([]).long()
+            finalAnchorBoxesCoordinates = torch.Tensor([])
+
+            if torch.cuda.is_available():
+                finalScores = finalScores.cuda()
+                finalAnchorBoxesIndexes = finalAnchorBoxesIndexes.cuda()
+                finalAnchorBoxesCoordinates = finalAnchorBoxesCoordinates.cuda()
+
+            for i in range(classification.shape[2]):
+                scores = torch.squeeze(classification[:, :, i])
+                scores_over_thresh = (scores > 0.05)
+                if scores_over_thresh.sum() == 0:
+                    # no boxes to NMS, just continue
+                    continue
+
+                scores = scores[scores_over_thresh]
+                anchorBoxes = torch.squeeze(transformed_anchors)
+                anchorBoxes = anchorBoxes[scores_over_thresh]
+                anchors_nms_idx = nms(anchorBoxes, scores, 0.5)
+
+                finalResult[0].extend(scores[anchors_nms_idx])
+                finalResult[1].extend(torch.tensor([i] * anchors_nms_idx.shape[0]))
+                finalResult[2].extend(anchorBoxes[anchors_nms_idx])
+
+                finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
+                finalAnchorBoxesIndexesValue = torch.tensor([i] * anchors_nms_idx.shape[0])
+                if torch.cuda.is_available():
+                    finalAnchorBoxesIndexesValue = finalAnchorBoxesIndexesValue.cuda()
+
+                finalAnchorBoxesIndexes = torch.cat((finalAnchorBoxesIndexes, finalAnchorBoxesIndexesValue))
+                finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates, anchorBoxes[anchors_nms_idx]))
+
+            # print('[finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates] : ', [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates])
+            return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
 
 
 class ClassificationModel(nn.Module):

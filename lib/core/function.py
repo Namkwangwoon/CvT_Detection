@@ -32,12 +32,9 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
         mode=aug.MIXUP_MODE, label_smoothing=config.LOSS.LABEL_SMOOTHING,
         num_classes=config.MODEL.NUM_CLASSES
     ) if aug.MIXUP_PROB > 0.0 else None
+    
     end = time.time()
     for i, (x, y) in enumerate(train_loader):
-        print("=========== x ==========")
-        print(x.shape)
-        print("\n========== y ==========")
-        print(y.shape, "\n")
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -57,8 +54,16 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
                 x = x.contiguous(memory_format=torch.channels_last)
                 y = y.contiguous(memory_format=torch.channels_last)
 
-            outputs = model(x)
-            loss = criterion(outputs, y)
+            # outputs = model(x)
+            # loss = criterion(outputs, y)
+
+            classification_loss, regression_loss = model([x, y])
+
+            classification_loss = classification_loss.mean()
+            regression_loss = regression_loss.mean()
+            loss = classification_loss + regression_loss
+            # classification_output, regression_output = model(x)
+
 
         # compute gradient and do update step
         optimizer.zero_grad()
@@ -80,13 +85,6 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
         scaler.update()
         # measure accuracy and record loss
         losses.update(loss.item(), x.size(0))
-
-        if mixup_fn:
-            y = torch.argmax(y, dim=1)
-        prec1, prec5 = accuracy(outputs, y, (1, 5))
-
-        top1.update(prec1, x.size(0))
-        top5.update(prec5, x.size(0))
 
         # measure elapsed time
         batch_time.update(time.time() - end)
