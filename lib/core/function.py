@@ -45,8 +45,12 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
         x = x.cuda(non_blocking=True)
         y = y.cuda(non_blocking=True)
 
-        if mixup_fn:
-            x, y = mixup_fn(x, y)
+        # x = x.cuda()
+        # y = y.cuda()
+        # print(x)
+
+        # if mixup_fn:
+            # x, y = mixup_fn(x, y)
 
         with autocast(enabled=config.AMP.ENABLED):
             if config.AMP.ENABLED and config.AMP.MEMORY_FORMAT == 'nwhc':
