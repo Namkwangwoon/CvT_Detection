@@ -6,6 +6,7 @@ import logging
 import os
 from collections import OrderedDict
 
+import math
 import numpy as np
 import scipy
 import torch
@@ -491,7 +492,7 @@ class VisionTransformer(nn.Module):
 class ConvolutionalVisionTransformer(nn.Module):
     def __init__(self,
                  in_chans=3,
-                 num_classes=1000,
+                 num_classes=80,
                  act_layer=nn.GELU,
                  norm_layer=nn.LayerNorm,
                  init='trunc_norm',
@@ -540,6 +541,18 @@ class ConvolutionalVisionTransformer(nn.Module):
         # Classifier head
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
         trunc_normal_(self.head.weight, std=0.02)
+
+        self.regressionModel = RegressionModel(64)
+        self.classificationModel = ClassificationModel(64, num_classes=80)
+
+        prior = 0.01
+
+        self.classificationModel.output.weight.data.fill_(0)
+        self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
+
+        self.regressionModel.output.weight.data.fill_(0)
+        self.regressionModel.output.bias.data.fill_(0)
+
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
         if os.path.isfile(pretrained):
@@ -603,24 +616,166 @@ class ConvolutionalVisionTransformer(nn.Module):
         return layers
 
     def forward_features(self, x):
-        for i in range(self.num_stages):
-            x, cls_tokens = getattr(self, f'stage{i}')(x)
+        print('========== CvT forward features ==========')
+        print('features shape : ', x.shape)
 
-        if self.cls_token:
-            x = self.norm(cls_tokens)
-            x = torch.squeeze(x)
-        else:
-            x = rearrange(x, 'b c h w -> b (h w) c')
-            x = self.norm(x)
-            x = torch.mean(x, dim=1)
+        x0, cls_tokens0 = getattr(self, f'stage0')(x)
+        print(f'stage 0 : ', x0.shape)
 
-        return x
+        x1, cls_tokens1 = getattr(self, f'stage1')(x0)
+        print(f'stage 1 : ', x1.shape)
+
+        x2, cls_tokens2 = getattr(self, f'stage2')(x1)
+        print(f'stage 2 : ', x2.shape)
+
+        '''
+        For Second Training
+        '''
+
+        # upsample_x1 = F.interpolate(x1, 56)
+        # upsample_x2 = F.interpolate(x2, 56)
+
+        # print('x0 : ', x0.shape)
+        # print('upsample x1 : ', upsample_x1.shape)
+        # print('upsample x2 : ', upsample_x2.shape)
+
+        # concatenate_features = torch.cat([x0, upsample_x1, upsample_x2], dim=1)
+        # print('concatenate feature maps : ', concatenate_features.shape)
+
+        # x = x2
+        # cls_tokens = cls_tokens2
+
+        # if self.cls_token:
+        #     x = self.norm(cls_tokens)
+        #     x = torch.squeeze(x)
+        # else:
+        #     x = rearrange(x, 'b c h w -> b (h w) c')
+        #     x = self.norm(x)
+        #     x = torch.mean(x, dim=1)
+
+        # print('OUTPUT : ', x.shape)
+        # print()
+
+        # print(x0.shape)
+        # print(x1.shape)
+        # print(x2.shape)
+
+        x0 = nn.Conv2d(x0.shape[1], 64, kernel_size=1, stride=1).cuda()(x0)
+        x1 = nn.Conv2d(x1.shape[1], 64, kernel_size=1, stride=1).cuda()(x1)
+        x2 = nn.Conv2d(x2.shape[1], 64, kernel_size=1, stride=1).cuda()(x2)
+
+        return x0, x1, x2
 
     def forward(self, x):
         x = self.forward_features(x)
-        x = self.head(x)
+        # x = self.head(x)
+
+        # print('x0 : ', x[0].shape)
+        # regression = self.regressionModel(x[0])
+        # print('regression : ', regression.shape)
+
+        # print('x1 : ', x[1].shape)
+        # regression = self.regressionModel(x[1])
+        # print('regression : ', regression.shape)
+
+        # print('x2 : ', x[2].shape)
+        # regression = self.regressionModel(x[2])
+        # print('regression : ', regression.shape)
+
+        regression = torch.cat([self.regressionModel(feature) for feature in x], dim=1)
+        classification = torch.cat([self.classificationModel(feature) for feature in x], dim=1)
+
+        print('regression : ', regression.shape)
+        print('classification : ', classification.shape)
 
         return x
+
+
+class ClassificationModel(nn.Module):
+    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
+        super(ClassificationModel, self).__init__()
+
+        self.num_classes = num_classes
+        self.num_anchors = num_anchors
+
+        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
+        self.act1 = nn.ReLU()
+
+        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act2 = nn.ReLU()
+
+        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act3 = nn.ReLU()
+
+        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act4 = nn.ReLU()
+
+        self.output = nn.Conv2d(feature_size, num_anchors * num_classes, kernel_size=3, padding=1)
+        self.output_act = nn.Sigmoid()
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.act1(out)
+
+        out = self.conv2(out)
+        out = self.act2(out)
+
+        out = self.conv3(out)
+        out = self.act3(out)
+
+        out = self.conv4(out)
+        out = self.act4(out)
+
+        out = self.output(out)
+        out = self.output_act(out)
+
+        # out is B x C x W x H, with C = n_classes + n_anchors
+        out1 = out.permute(0, 2, 3, 1)
+
+        batch_size, width, height, channels = out1.shape
+
+        out2 = out1.view(batch_size, width, height, self.num_anchors, self.num_classes)
+
+        return out2.contiguous().view(x.shape[0], -1, self.num_classes)
+
+
+class RegressionModel(nn.Module):
+    def __init__(self, num_features_in, num_anchors=9, feature_size=256):
+        super().__init__()
+
+        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
+        self.act1 = nn.ReLU()
+
+        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act2 = nn.ReLU()
+
+        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act3 = nn.ReLU()
+
+        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
+        self.act4 = nn.ReLU()
+
+        self.output = nn.Conv2d(feature_size, num_anchors * 4, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.act1(out)
+
+        out = self.conv2(out)
+        out = self.act2(out)
+
+        out = self.conv3(out)
+        out = self.act3(out)
+
+        out = self.conv4(out)
+        out = self.act4(out)
+
+        out = self.output(out)
+
+        # out is B x C x W x H, with C = 4*num_anchors
+        out = out.permute(0, 2, 3, 1)
+
+        return out.contiguous().view(out.shape[0], -1, 4)
 
 
 @register_model
@@ -635,11 +790,18 @@ def get_cls_model(config, **kwargs):
         spec=msvit_spec
     )
 
-    if config.MODEL.INIT_WEIGHTS:
-        msvit.init_weights(
-            config.MODEL.PRETRAINED,
-            config.MODEL.PRETRAINED_LAYERS,
-            config.VERBOSE
-        )
+    # if config.MODEL.INIT_WEIGHTS:
+    #     msvit.init_weights(
+    #         config.MODEL.PRETRAINED,
+    #         config.MODEL.PRETRAINED_LAYERS,
+    #         config.VERBOSE
+    #     )
+
+    msvit.init_weights(
+        config.MODEL.PRETRAINED,
+        config.MODEL.PRETRAINED_LAYERS,
+        config.VERBOSE
+    )
+
 
     return msvit
