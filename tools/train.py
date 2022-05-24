@@ -44,7 +44,7 @@ def parse_args():
 
     parser.add_argument('--cfg',
                         help='experiment configure file name',
-                        required=True,
+                        default='experiments/imagenet/cvt/cvt-13-224x224.yaml',
                         type=str)
 
     # distributed training
