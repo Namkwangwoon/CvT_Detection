@@ -3,6 +3,21 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+  
+*.pth
+*.ipynb
+
+/runs
+/data
+/checkpoint
+/output
+
+DATASET/
+OUTPUT/
+
+__pycache__/
+*.py[cod]
+
 # User-specific files
 *.rsuser
 *.suo

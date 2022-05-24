@@ -34,6 +34,10 @@ from utils.utils import save_checkpoint_on_master
 from utils.utils import save_model_on_master
 
 
+from dataset.dataloader import CocoDataset, Normalizer, Augmenter, Resizer, CSVDataset, AspectRatioBasedSampler, collater
+from torchvision import transforms
+from torch.utils.data import DataLoader
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description='Train classification network')
@@ -51,6 +55,17 @@ def parse_args():
                         help="Modify config options using the command-line",
                         default=None,
                         nargs=argparse.REMAINDER)
+    
+    
+    parser.add_argument('--dataset', help='Dataset type, must be one of csv or coco.', default='coco')
+    parser.add_argument('--coco_path', help='Path to COCO directory', default='DATASET/coco')
+    parser.add_argument('--csv_train', help='Path to file containing training annotations (see readme)')
+    parser.add_argument('--csv_classes', help='Path to file containing class list (see readme)')
+    parser.add_argument('--csv_val', help='Path to file containing validation annotations (optional, see readme)')
+
+    parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
+    parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
+
 
     args = parser.parse_args()
 
@@ -103,8 +118,51 @@ def main():
         model, optimizer, config, final_output_dir, True
     )
 
-    train_loader = build_dataloader(config, True, args.distributed)
-    valid_loader = build_dataloader(config, False, args.distributed)
+    # train_loader = build_dataloader(config, True, args.distributed)
+    # valid_loader = build_dataloader(config, False, args.distributed)
+
+    ## COCO dataset
+    
+    # Create the data loaders
+    if args.dataset == 'coco':
+
+        if args.coco_path is None:
+            raise ValueError('Must provide --coco_path when training on COCO,')
+
+        dataset_train = CocoDataset(args.coco_path, set_name='train2017',
+                                    transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+        dataset_val = CocoDataset(args.coco_path, set_name='val2017',
+                                  transform=transforms.Compose([Normalizer(), Resizer()]))
+
+    elif args.dataset == 'csv':
+
+        if args.csv_train is None:
+            raise ValueError('Must provide --csv_train when training on COCO,')
+
+        if args.csv_classes is None:
+            raise ValueError('Must provide --csv_classes when training on COCO,')
+
+        dataset_train = CSVDataset(train_file=args.csv_train, class_list=args.csv_classes,
+                                   transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+
+        if args.csv_val is None:
+            dataset_val = None
+            print('No validation annotations provided.')
+        else:
+            dataset_val = CSVDataset(train_file=args.csv_val, class_list=args.csv_classes,
+                                     transform=transforms.Compose([Normalizer(), Resizer()]))
+
+    else:
+        raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
+
+    sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
+    train_loader = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
+
+    if dataset_val is not None:
+        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
+        valid_loader = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
+        
+
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(

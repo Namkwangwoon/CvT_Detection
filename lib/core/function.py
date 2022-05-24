@@ -34,6 +34,10 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
     ) if aug.MIXUP_PROB > 0.0 else None
     end = time.time()
     for i, (x, y) in enumerate(train_loader):
+        print("=========== x ==========")
+        print(x.shape)
+        print("\n========== y ==========")
+        print(y.shape, "\n")
         # measure data loading time
         data_time.update(time.time() - end)
 
