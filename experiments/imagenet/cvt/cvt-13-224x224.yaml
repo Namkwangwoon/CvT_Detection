@@ -1,5 +1,5 @@
 OUTPUT_DIR: 'OUTPUT/'
-WORKERS: 6
+WORKERS: 1
 PRINT_FREQ: 500
 AMP:
   ENABLED: true
@@ -20,7 +20,7 @@ MODEL:
     DROP_RATE: [0.0, 0.0, 0.0]
     DROP_PATH_RATE: [0.0, 0.0, 0.1]
     QKV_BIAS: [True, True, True]
-    CLS_TOKEN: [False, False, True]
+    CLS_TOKEN: [False, False, False]
     POS_EMBED: [False, False, False]
     QKV_PROJ_METHOD: ['dw_bn', 'dw_bn', 'dw_bn']
     KERNEL_QKV: [3, 3, 3]
