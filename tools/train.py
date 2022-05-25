@@ -38,10 +38,7 @@ from dataset.COCOdataloader import CocoDataset, Normalizer, Augmenter, Resizer, 
 from torchvision import transforms
 from torch.utils.data import DataLoader
 
-<<<<<<< HEAD
 from dataset.SOCdataloader import Config, get_loader
-=======
->>>>>>> 6448564f2605e7799f5bd92e89f1da5ae007d013
 from eval_coco import evaluate_coco
 
 def parse_args():
@@ -168,7 +165,6 @@ def main():
     #     sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
     #     valid_loader = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
         
-<<<<<<< HEAD
     ###
     
     ### SOC dataset ###
@@ -184,8 +180,6 @@ def main():
     
     ###
 
-=======
->>>>>>> 6448564f2605e7799f5bd92e89f1da5ae007d013
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[args.local_rank],
