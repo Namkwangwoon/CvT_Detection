@@ -77,7 +77,6 @@ class SalObjDataset(data.Dataset):
 
 
     def filter_files(self):
-        print(len(self.images), "==", len(self.gts), "?")
         assert len(self.images) == len(self.gts)
         images = []
         gts = []
