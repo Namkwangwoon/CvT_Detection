@@ -301,7 +301,6 @@ class CSVDataset(Dataset):
 
 
 def collater(data):
-
     imgs = [s['img'] for s in data]
     annots = [s['annot'] for s in data]
     scales = [s['scale'] for s in data]
@@ -346,51 +345,60 @@ def collater(data):
     # return {'img': padded_imgs, 'annot': annot_padded, 'scale': scales}
     return [padded_imgs, annot_padded]
 
-# class Resizer(object):
-#     """Convert ndarrays in sample to Tensors."""
-
-#     def __call__(self, sample, min_side=608, max_side=1024):
-#         image, annots = sample['img'], sample['annot']
-
-#         rows, cols, cns = image.shape
-
-#         smallest_side = min(rows, cols)
-
-#         # rescale the image so the smallest side is min_side
-#         scale = min_side / smallest_side
-
-#         # check if the largest side is now greater than max_side, which can happen
-#         # when images have a large aspect ratio
-#         largest_side = max(rows, cols)
-
-#         if largest_side * scale > max_side:
-#             scale = max_side / largest_side
-
-#         # resize the image with the computed scale
-#         image = skimage.transform.resize(image, (int(round(rows*scale)), int(round((cols*scale)))))
-#         rows, cols, cns = image.shape
-
-#         pad_w = 32 - rows%32
-#         pad_h = 32 - cols%32
-
-#         new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
-#         new_image[:rows, :cols, :] = image.astype(np.float32)
-
-#         annots[:, :4] *= scale
-
-
-#         return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
-
 class Resizer(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample, min_side=608, max_side=1024):
         image, annots = sample['img'], sample['annot']
 
-        image = skimage.transform.resize(image, (224, 224))
-        scale = 1.0
+        rows, cols, cns = image.shape
+
+        smallest_side = min(rows, cols)
+
+        # rescale the image so the smallest side is min_side
+        scale = min_side / smallest_side
+
+        # check if the largest side is now greater than max_side, which can happen
+        # when images have a large aspect ratio
+        largest_side = max(rows, cols)
+
+        if largest_side * scale > max_side:
+            scale = max_side / largest_side
         
-        return {'img': torch.from_numpy(image), 'annot': torch.from_numpy(annots), 'scale': scale}
+        # resize the image with the computed scale
+        image = skimage.transform.resize(image, (int(round(rows*scale)), int(round((cols*scale)))))
+        rows, cols, cns = image.shape
+
+        pad_w = 32 - rows%32
+        pad_h = 32 - cols%32
+
+        new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
+        new_image[:rows, :cols, :] = image.astype(np.float32)
+        
+        new_w, new_h, _ = new_image.shape
+        new_w_scale, new_h_scale = 224.0/new_w, 224.0/new_h
+        
+        # (224, 224) resize
+        new_image = skimage.transform.resize(new_image, (224, 224))
+        
+        # annotation scale change
+        annots[:, :4] *= scale
+        
+        annots[:, 0:2] *= new_w_scale
+        annots[:, 2:4] *= new_h_scale
+
+        return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
+
+# class Resizer(object):
+#     """Convert ndarrays in sample to Tensors."""
+
+#     def __call__(self, sample, min_side=608, max_side=1024):
+#         image, annots = sample['img'], sample['annot']
+
+#         image = skimage.transform.resize(image, (224, 224))
+#         scale = 1.0
+        
+#         return {'img': torch.from_numpy(image), 'annot': torch.from_numpy(annots), 'scale': scale}
 
 
 class Augmenter(object):
