@@ -384,8 +384,16 @@ class Resizer(object):
         # annotation scale change
         annots[:, :4] *= scale
         
+        # print('bef : ', annots[0])
+        # print(image.shape)
+        # print()
+
         annots[:, 0:2] *= new_w_scale
         annots[:, 2:4] *= new_h_scale
+
+        # print('aft : ', annots[0])
+        # print(new_image.shape)
+        # print()
 
         return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': scale}
 
