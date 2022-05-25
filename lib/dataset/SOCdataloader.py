@@ -40,7 +40,7 @@ class SalObjDataset(data.Dataset):
         self.trainsize = trainsize
         self.images = [image_root + f for f in os.listdir(image_root) if f.endswith('.jpg')]
         self.gts = [gt_root + f for f in os.listdir(gt_root) if f.endswith('.jpg')
-                    or f.endswith('.png')]
+                    or f.endswith('.png') or f.endswith('.PNG')]
         self.images = sorted(self.images)
         self.gts = sorted(self.gts)
         self.filter_files()
