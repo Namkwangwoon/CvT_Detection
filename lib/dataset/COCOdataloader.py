@@ -391,18 +391,6 @@ class Resizer(object):
         
         return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(annots), 'scale': w_scale}
 
-# class Resizer(object):
-#     """Convert ndarrays in sample to Tensors."""
-
-#     def __call__(self, sample, min_side=608, max_side=1024):
-#         image, annots = sample['img'], sample['annot']
-
-#         image = skimage.transform.resize(image, (224, 224))
-#         scale = 1.0
-        
-#         return {'img': torch.from_numpy(image), 'annot': torch.from_numpy(annots), 'scale': scale}
-
-
 class Augmenter(object):
     """Convert ndarrays in sample to Tensors."""
 

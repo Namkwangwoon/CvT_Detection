@@ -86,6 +86,9 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
         # measure accuracy and record loss
         losses.update(loss.item(), x.size(0))
 
+        print('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
+                        epoch, i, float(classification_loss), float(regression_loss), loss))
+
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()

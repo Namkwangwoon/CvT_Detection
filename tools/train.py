@@ -189,8 +189,8 @@ def main():
 
     criterion = build_criterion(config)
     criterion.cuda()
-    criterion_eval = build_criterion(config, train=False)
-    criterion_eval.cuda()
+    # criterion_eval = build_criterion(config, train=False)
+    # criterion_eval.cuda()
 
     lr_scheduler = build_lr_scheduler(config, optimizer, begin_epoch)
 

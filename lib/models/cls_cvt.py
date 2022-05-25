@@ -544,18 +544,18 @@ class ConvolutionalVisionTransformer(nn.Module):
 
         # Classifier head
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
-        trunc_normal_(self.head.weight, std=0.02)
+        # trunc_normal_(self.head.weight, std=0.02)
 
         self.regressionModel = RegressionModel(256)
         self.classificationModel = ClassificationModel(256, num_classes=80)
 
-        prior = 0.01
+        # prior = 0.0001
 
-        self.classificationModel.output.weight.data.fill_(0)
-        self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
+        # self.classificationModel.output.weight.data.fill_(0)
+        # self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
 
-        self.regressionModel.output.weight.data.fill_(0)
-        self.regressionModel.output.bias.data.fill_(0)
+        # self.regressionModel.output.weight.data.fill_(0)
+        # self.regressionModel.output.bias.data.fill_(0)
 
         self.anchors = Anchors()
         self.focalLoss = losses.FocalLoss()
@@ -675,7 +675,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
         x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
         x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
-
 
         return x0, x1, x2
 
