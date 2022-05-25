@@ -135,13 +135,14 @@ def resume_checkpoint(model,
 
     checkpoint = os.path.join(output_dir, 'checkpoint.pth')\
         if not config.TRAIN.CHECKPOINT else config.TRAIN.CHECKPOINT
+
     if config.TRAIN.AUTO_RESUME and os.path.exists(checkpoint):
         logging.info(
             "=> loading checkpoint '{}'".format(checkpoint)
         )
         checkpoint_dict = torch.load(checkpoint, map_location='cpu')
-        best_perf = checkpoint_dict['perf']
-        begin_epoch_or_step = checkpoint_dict['epoch' if in_epoch else 'step']
+        # best_perf = checkpoint_dict['perf']
+        # begin_epoch_or_step = checkpoint_dict['epoch' if in_epoch else 'step']
         state_dict = checkpoint_dict['state_dict']
         model.load_state_dict(state_dict)
 

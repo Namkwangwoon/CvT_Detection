@@ -40,7 +40,7 @@ _C.CUDNN.ENABLED = True
 _C.MODEL = CN()
 _C.MODEL.NAME = 'cls_hrnet'
 _C.MODEL.INIT_WEIGHTS = True
-_C.MODEL.PRETRAINED = ''
+_C.MODEL.PRETRAINED = 'OUTPUT/imagenet/checkpoint.pth'
 _C.MODEL.PRETRAINED_LAYERS = ['*']
 _C.MODEL.NUM_CLASSES = 80
 _C.MODEL.SPEC = CN(new_allowed=True)

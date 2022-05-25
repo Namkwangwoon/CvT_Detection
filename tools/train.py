@@ -39,6 +39,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from dataset.SOCdataloader import Config, get_loader
+from eval_coco import evaluate_coco
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -206,10 +207,10 @@ def main():
 
         # train for one epoch
         logging.info('=> {} train start'.format(head))
-        with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
-            train_one_epoch(config, train_loader, model, criterion, optimizer,
-                            epoch, final_output_dir, tb_log_dir, writer_dict,
-                            scaler=scaler)
+        # with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
+        #     train_one_epoch(config, train_loader, model, criterion, optimizer,
+        #                     epoch, final_output_dir, tb_log_dir, writer_dict,
+        #                     scaler=scaler)
         logging.info(
             '=> {} train end, duration: {:.2f}s'
             .format(head, time.time()-start)
@@ -220,19 +221,16 @@ def main():
         val_start = time.time()
 
         if epoch >= config.TRAIN.EVAL_BEGIN_EPOCH:
-            perf = test(
-                config, valid_loader, model, criterion_eval,
-                final_output_dir, tb_log_dir, writer_dict,
-                args.distributed
-            )
+            # perf = test(
+            #     config, valid_loader, model, criterion_eval,
+            #     final_output_dir, tb_log_dir, writer_dict,
+            #     args.distributed
+            # )
+
+            perf = evaluate_coco(dataset_val, model)
 
             best_model = (perf > best_perf)
             best_perf = perf if best_model else best_perf
-
-        logging.info(
-            '=> {} validate end, duration: {:.2f}s'
-            .format(head, time.time()-val_start)
-        )
 
         lr_scheduler.step(epoch=epoch+1)
         if config.TRAIN.LR_SCHEDULER.METHOD == 'timm':
@@ -252,15 +250,19 @@ def main():
             best_perf=best_perf,
         )
 
-        if best_model and comm.is_main_process():
-            save_model_on_master(
-                model, args.distributed, final_output_dir, 'model_best.pth'
-            )
+        save_model_on_master(
+            model, args.distributed, final_output_dir, f'model_{epoch}.pth'
+        )
 
-        if config.TRAIN.SAVE_ALL_MODELS and comm.is_main_process():
-            save_model_on_master(
-                model, args.distributed, final_output_dir, f'model_{epoch}.pth'
-            )
+        # if best_model and comm.is_main_process():
+        #     save_model_on_master(
+        #         model, args.distributed, final_output_dir, 'model_best.pth'
+        #     )
+
+        # if config.TRAIN.SAVE_ALL_MODELS and comm.is_main_process():
+        #     save_model_on_master(
+        #         model, args.distributed, final_output_dir, f'model_{epoch}.pth'
+        #     )
 
         logging.info(
             '=> {} epoch end, duration : {:.2f}s'
