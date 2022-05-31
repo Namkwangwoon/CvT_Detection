@@ -564,7 +564,7 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.clipBoxes = ClipBoxes()
 
 
-    def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
+    def init_weights(self, pretrained='', pretrained_layers=[], verbose=False):
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained, map_location='cpu')
             logging.info(f'=> loading pretrained model {pretrained}')

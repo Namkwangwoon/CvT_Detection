@@ -36,6 +36,7 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
     end = time.time()
     for i, (x, y) in enumerate(train_loader):
         # measure data loading time
+        optimizer.zero_grad()
         data_time.update(time.time() - end)
 
         # compute output
