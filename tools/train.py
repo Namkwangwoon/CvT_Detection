@@ -117,9 +117,9 @@ def main():
     begin_epoch = config.TRAIN.BEGIN_EPOCH
     optimizer = build_optimizer(config, model)
 
-    best_perf, begin_epoch = resume_checkpoint(
-        model, optimizer, config, final_output_dir, True
-    )
+    # best_perf, begin_epoch = resume_checkpoint(
+        # model, optimizer, config, final_output_dir, True
+    # )
 
     # train_loader = build_dataloader(config, True, args.distributed)
     # valid_loader = build_dataloader(config, False, args.distributed)
@@ -227,10 +227,22 @@ def main():
             #     args.distributed
             # )
 
-            perf = evaluate_coco(dataset_val, model)
+            evaluate_coco(dataset_val, model)
+            
+            
+        
+        else:
+            model.eval()
 
-            best_model = (perf > best_perf)
-            best_perf = perf if best_model else best_perf
+        perf=0
+        best_model = (perf > best_perf)
+        best_perf = perf if best_model else best_perf
+
+        fname_full = os.path.join(final_output_dir, fname)
+        torch.save(
+            model.module.state_dict() if distributed else model.state_dict(),
+            fname_full
+        )
 
         lr_scheduler.step(epoch=epoch+1)
         if config.TRAIN.LR_SCHEDULER.METHOD == 'timm':
@@ -277,6 +289,9 @@ def main():
         save_model_on_master(
              args.distributed, final_output_dir, 'swa_state.pth'
         )
+
+    # torch.save(model, '{}_cvt_transformer_{}.pt'.format('coco', epoch_num))
+    
 
     writer_dict['writer'].close()
     logging.info('=> finish training')

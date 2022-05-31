@@ -5,8 +5,10 @@
 
   
 *.pth
+*.pt
 *.ipynb
-
+*.jpg
+*.json
 /runs
 /data
 /checkpoint
