@@ -159,11 +159,11 @@ def main():
         raise ValueError('Dataset type not understood (must be csv or coco), exiting.')
 
     sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
-    train_loader = DataLoader(dataset_train, num_workers=3, collate_fn=collater, batch_sampler=sampler)
+    train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=sampler)
 
     if dataset_val is not None:
         sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
-        valid_loader = DataLoader(dataset_val, num_workers=3, collate_fn=collater, batch_sampler=sampler_val)
+        valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
         
     ###
     
@@ -228,8 +228,6 @@ def main():
             # )
 
             evaluate_coco(dataset_val, model)
-            
-            
         
         else:
             model.eval()
@@ -238,6 +236,7 @@ def main():
         best_model = (perf > best_perf)
         best_perf = perf if best_model else best_perf
 
+        fname = f'cvt_transformer_{epoch}.pth'
         fname_full = os.path.join(final_output_dir, fname)
         torch.save(
             model.module.state_dict() if distributed else model.state_dict(),
@@ -251,20 +250,20 @@ def main():
             lr = lr_scheduler.get_last_lr()[0]
         logging.info(f'=> lr: {lr}')
 
-        save_checkpoint_on_master(
-            model=model,
-            distributed=args.distributed,
-            model_name=config.MODEL.NAME,
-            optimizer=optimizer,
-            output_dir=final_output_dir,
-            in_epoch=True,
-            epoch_or_step=epoch,
-            best_perf=best_perf,
-        )
+        # save_checkpoint_on_master(
+        #     model=model,
+        #     distributed=args.distributed,
+        #     model_name=config.MODEL.NAME,
+        #     optimizer=optimizer,
+        #     output_dir=final_output_dir,
+        #     in_epoch=True,
+        #     epoch_or_step=epoch,
+        #     best_perf=best_perf,
+        # )
 
-        save_model_on_master(
-            model, args.distributed, final_output_dir, f'model_{epoch}.pth'
-        )
+        # save_model_on_master(
+        #     model, args.distributed, final_output_dir, f'model_{epoch}.pth'
+        # )
 
         # if best_model and comm.is_main_process():
         #     save_model_on_master(
@@ -281,14 +280,14 @@ def main():
             .format(head, time.time()-start)
         )
 
-    save_model_on_master(
-        model, args.distributed, final_output_dir, 'final_state.pth'
-    )
+    # save_model_on_master(
+    #     model, args.distributed, final_output_dir, 'final_state.pth'
+    # )
 
-    if config.SWA.ENABLED and comm.is_main_process():
-        save_model_on_master(
-             args.distributed, final_output_dir, 'swa_state.pth'
-        )
+    # if config.SWA.ENABLED and comm.is_main_process():
+    #     save_model_on_master(
+    #          args.distributed, final_output_dir, 'swa_state.pth'
+    #     )
 
     # torch.save(model, '{}_cvt_transformer_{}.pt'.format('coco', epoch_num))
     

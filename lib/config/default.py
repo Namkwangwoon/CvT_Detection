@@ -98,7 +98,7 @@ _C.TRAIN.CHECKPOINT = ''
 _C.TRAIN.LR_SCHEDULER = CN(new_allowed=True)
 _C.TRAIN.SCALE_LR = True
 # _C.TRAIN.LR = 0.001
-_C.TRAIN.LR = 1e-3
+_C.TRAIN.LR = 0.0005
 
 _C.TRAIN.OPTIMIZER = 'adam'
 _C.TRAIN.OPTIMIZER_ARGS = CN(new_allowed=True)
