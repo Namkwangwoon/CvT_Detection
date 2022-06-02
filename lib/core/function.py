@@ -87,9 +87,6 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
         # measure accuracy and record loss
         losses.update(loss.item(), x.size(0))
 
-        print('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
-                        epoch, i, float(classification_loss), float(regression_loss), loss))
-
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -107,7 +104,10 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
                       speed=x.size(0)/batch_time.val,
                       data_time=data_time, loss=losses, top1=top1, top5=top5)
             logging.info(msg)
-
+            
+        print('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
+                    epoch, i, float(classification_loss), float(regression_loss), loss))
+        
         torch.cuda.synchronize()
 
     if writer_dict and comm.is_main_process():

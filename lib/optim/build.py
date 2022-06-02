@@ -153,7 +153,7 @@ def build_optimizer(cfg, model):
 
     optimizer = optim.Adam(
         model.parameters(), 
-        lr=cfg.TRAIN.LR,
+        lr=1e-6,
         weight_decay=cfg.TRAIN.WD,
     )
 
