@@ -3,7 +3,7 @@ import json
 import torch
 import numpy as np
 
-def evaluate_coco(dataset, model, threshold=0.05):
+def evaluate_coco(dataset, model, threshold=0.5):
     
     model.eval()
     
@@ -16,7 +16,9 @@ def evaluate_coco(dataset, model, threshold=0.05):
         for index in range(len(dataset)//100):
 
             data = dataset[index]
-            scale = data['scale']
+            # scale = data['scale']
+            scale = 1.0
+            # print(data['img'].shape)
 
             # run network
             if torch.cuda.is_available():

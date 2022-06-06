@@ -459,7 +459,7 @@ class AspectRatioBasedSampler(Sampler):
         self.groups = self.group_images()
 
     def __iter__(self):
-        random.shuffle(self.groups)
+        # random.shuffle(self.groups)
         for group in self.groups:
             yield group
 
