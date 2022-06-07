@@ -565,7 +565,7 @@ class ConvolutionalVisionTransformer(nn.Module):
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=False):
-        pretrained = 'OUTPUT/imagenet/cvt_transformer_5.pth'
+        # pretrained = 'OUTPUT/imagenet/cvt_transformer_5.pth'
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained, map_location='cpu')
             logging.info(f'=> loading pretrained model {pretrained}')
@@ -616,8 +616,8 @@ class ConvolutionalVisionTransformer(nn.Module):
 
                     need_init_state_dict[k] = v
 
-            # del need_init_state_dict['head.weight']
-            # del need_init_state_dict['head.bias']
+            del need_init_state_dict['head.weight']
+            del need_init_state_dict['head.bias']
             
             self.load_state_dict(need_init_state_dict, strict=False)
 

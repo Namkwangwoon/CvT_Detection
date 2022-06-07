@@ -19,7 +19,7 @@ from config import config
 from config import update_config
 from config import save_config
 from core.loss import build_criterion
-from core.function import train_one_epoch, test
+from core.function import train_one_epoch
 from dataset import build_dataloader
 from models import build_model
 from optim import build_optimizer
@@ -62,13 +62,7 @@ def parse_args():
     
     parser.add_argument('--dataset', help='Dataset type, must be one of csv or coco.', default='coco')
     parser.add_argument('--coco_path', help='Path to COCO directory', default='DATASET/coco')
-    parser.add_argument('--csv_train', help='Path to file containing training annotations (see readme)')
-    parser.add_argument('--csv_classes', help='Path to file containing class list (see readme)')
-    parser.add_argument('--csv_val', help='Path to file containing validation annotations (optional, see readme)')
-
-    parser.add_argument('--depth', help='Resnet depth, must be one of 18, 34, 50, 101, 152', type=int, default=50)
     parser.add_argument('--epochs', help='Number of epochs', type=int, default=100)
-
 
     args = parser.parse_args()
 
@@ -116,6 +110,13 @@ def main():
     best_model = True
     begin_epoch = config.TRAIN.BEGIN_EPOCH
     optimizer = build_optimizer(config, model)
+    print(optimizer)
+    # optimizer = torch.optim.SGD(
+    #     lr=config.TRAIN.LR,
+    #     momentum=config.TRAIN.MOMENTUM,
+    #     weight_decay=config.TRAIN.WD,
+    #     nesterov=config.TRAIN.NESTEROV
+    # )
 
     # best_perf, begin_epoch = resume_checkpoint(
         # model, optimizer, config, final_output_dir, True
@@ -127,8 +128,10 @@ def main():
     ### COCO dataset ###
     
     # Create the data loaders
+    # dataset_train = CocoDataset(args.coco_path, set_name='train2017',
+    #                             transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
     dataset_train = CocoDataset(args.coco_path, set_name='train2017',
-                                transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+                                transform=transforms.Compose([Normalizer(), Resizer()]))
     dataset_val = CocoDataset(args.coco_path, set_name='val2017',
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
 
@@ -167,7 +170,7 @@ def main():
     # criterion_eval.cuda()
 
     # lr_scheduler = build_lr_scheduler(config, optimizer, begin_epoch)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 50, 100], gamma=0.2)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[24, 32], gamma=0.1)
 
     scaler = torch.cuda.amp.GradScaler(enabled=config.AMP.ENABLED)
 
@@ -224,51 +227,13 @@ def main():
         lr = lr_scheduler.get_last_lr()[0]
         logging.info(f'=> lr: {lr}')
 
-        # save_checkpoint_on_master(
-        #     model=model,
-        #     distributed=args.distributed,
-        #     model_name=config.MODEL.NAME,
-        #     optimizer=optimizer,
-        #     output_dir=final_output_dir,
-        #     in_epoch=True,
-        #     epoch_or_step=epoch,
-        #     best_perf=best_perf,
-        # )
-
-        # save_model_on_master(
-        #     model, args.distributed, final_output_dir, f'model_{epoch}.pth'
-        # )
-
-        # if best_model and comm.is_main_process():
-        #     save_model_on_master(
-        #         model, args.distributed, final_output_dir, 'model_best.pth'
-        #     )
-
-        # if config.TRAIN.SAVE_ALL_MODELS and comm.is_main_process():
-        #     save_model_on_master(
-        #         model, args.distributed, final_output_dir, f'model_{epoch}.pth'
-        #     )
-
         logging.info(
             '=> {} epoch end, duration : {:.2f}s'
             .format(head, time.time()-start)
         )
 
-    # save_model_on_master(
-    #     model, args.distributed, final_output_dir, 'final_state.pth'
-    # )
-
-    # if config.SWA.ENABLED and comm.is_main_process():
-    #     save_model_on_master(
-    #          args.distributed, final_output_dir, 'swa_state.pth'
-    #     )
-
-    # torch.save(model, '{}_cvt_transformer_{}.pt'.format('coco', epoch_num))
-    
-
     writer_dict['writer'].close()
     logging.info('=> finish training')
-
 
 if __name__ == '__main__':
     main()

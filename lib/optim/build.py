@@ -108,54 +108,54 @@ def set_wd(cfg, model):
 
 
 def build_optimizer(cfg, model):
-    # if cfg.TRAIN.OPTIMIZER == 'timm':
-    #     args = cfg.TRAIN.OPTIMIZER_ARGS
+    if cfg.TRAIN.OPTIMIZER == 'timm':
+        args = cfg.TRAIN.OPTIMIZER_ARGS
 
-    #     print(f'=> usage timm optimizer args: {cfg.TRAIN.OPTIMIZER_ARGS}')
-    #     optimizer = create_optimizer(args, model)
+        print(f'=> usage timm optimizer args: {cfg.TRAIN.OPTIMIZER_ARGS}')
+        optimizer = create_optimizer(args, model)
 
-    #     return optimizer
+        return optimizer
 
-    # optimizer = None
-    # params = set_wd(cfg, model)
-    # if cfg.TRAIN.OPTIMIZER == 'sgd':
-    #     optimizer = optim.SGD(
-    #         params,
-    #         # filter(lambda p: p.requires_grad, model.parameters()),
-    #         lr=cfg.TRAIN.LR,
-    #         momentum=cfg.TRAIN.MOMENTUM,
-    #         weight_decay=cfg.TRAIN.WD,
-    #         nesterov=cfg.TRAIN.NESTEROV
-    #     )
-    # elif cfg.TRAIN.OPTIMIZER == 'adam':
-    #     optimizer = optim.Adam(
-    #         params,
-    #         # filter(lambda p: p.requires_grad, model.parameters()),
-    #         lr=cfg.TRAIN.LR,
-    #         weight_decay=cfg.TRAIN.WD,
-    #     )
-    # elif cfg.TRAIN.OPTIMIZER == 'adamW':
-    #     optimizer = optim.AdamW(
-    #         params,
-    #         lr=cfg.TRAIN.LR,
-    #         weight_decay=cfg.TRAIN.WD,
-    #     )
-    # elif cfg.TRAIN.OPTIMIZER == 'rmsprop':
-    #     optimizer = optim.RMSprop(
-    #         params,
-    #         # filter(lambda p: p.requires_grad, model.parameters()),
-    #         lr=cfg.TRAIN.LR,
-    #         momentum=cfg.TRAIN.MOMENTUM,
-    #         weight_decay=cfg.TRAIN.WD,
-    #         alpha=cfg.TRAIN.RMSPROP_ALPHA,
-    #         centered=cfg.TRAIN.RMSPROP_CENTERED
-    #     )
+    optimizer = None
+    params = set_wd(cfg, model)
+    if cfg.TRAIN.OPTIMIZER == 'sgd':
+        optimizer = optim.SGD(
+            params,
+            # filter(lambda p: p.requires_grad, model.parameters()),
+            lr=cfg.TRAIN.LR,
+            momentum=cfg.TRAIN.MOMENTUM,
+            weight_decay=cfg.TRAIN.WD,
+            nesterov=cfg.TRAIN.NESTEROV
+        )
+    elif cfg.TRAIN.OPTIMIZER == 'adam':
+        optimizer = optim.Adam(
+            params,
+            # filter(lambda p: p.requires_grad, model.parameters()),
+            lr=cfg.TRAIN.LR,
+            weight_decay=cfg.TRAIN.WD,
+        )
+    elif cfg.TRAIN.OPTIMIZER == 'adamW':
+        optimizer = optim.AdamW(
+            params,
+            lr=cfg.TRAIN.LR,
+            weight_decay=cfg.TRAIN.WD,
+        )
+    elif cfg.TRAIN.OPTIMIZER == 'rmsprop':
+        optimizer = optim.RMSprop(
+            params,
+            # filter(lambda p: p.requires_grad, model.parameters()),
+            lr=cfg.TRAIN.LR,
+            momentum=cfg.TRAIN.MOMENTUM,
+            weight_decay=cfg.TRAIN.WD,
+            alpha=cfg.TRAIN.RMSPROP_ALPHA,
+            centered=cfg.TRAIN.RMSPROP_CENTERED
+        )
 
-    optimizer = optim.Adam(
-        model.parameters(), 
-        lr=cfg.TRAIN.LR,
-        weight_decay=cfg.TRAIN.WD,
-    )
+    # optimizer = optim.Adam(
+    #     model.parameters(), 
+    #     lr=cfg.TRAIN.LR,
+    #     weight_decay=cfg.TRAIN.WD,
+    # )
 
     return optimizer
 

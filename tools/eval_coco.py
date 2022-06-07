@@ -3,7 +3,7 @@ import json
 import torch
 import numpy as np
 
-def evaluate_coco(dataset, model, threshold=0.5):
+def evaluate_coco(dataset, model, threshold=0.05):
     
     model.eval()
     
