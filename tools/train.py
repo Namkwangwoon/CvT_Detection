@@ -40,6 +40,7 @@ from torch.utils.data import DataLoader
 
 from dataset.SOCdataloader import Config, get_loader
 from eval_coco import evaluate_coco
+from core.losses import FocalLoss
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -142,8 +143,6 @@ def main():
         sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
         valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
         
-    ###
-    
     ### SOC dataset ###
     
     # config = Config()
@@ -164,8 +163,10 @@ def main():
             find_unused_parameters=True
         )
 
-    criterion = build_criterion(config)
-    criterion.cuda()
+    # criterion = build_criterion(config)
+    # criterion.cuda()
+    criterion = FocalLoss()
+
     # criterion_eval = build_criterion(config, train=False)
     # criterion_eval.cuda()
 
