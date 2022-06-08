@@ -15,40 +15,14 @@ from utils.comm import comm
 
 def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
                     output_dir, tb_log_dir, writer_dict, scaler=None):
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
-    top5 = AverageMeter()
-
     logging.info('=> switch to train mode')
     model.train()
 
-    aug = config.AUG
-    mixup_fn = Mixup(
-        mixup_alpha=aug.MIXUP, cutmix_alpha=aug.MIXCUT,
-        cutmix_minmax=aug.MIXCUT_MINMAX if aug.MIXCUT_MINMAX else None,
-        prob=aug.MIXUP_PROB, switch_prob=aug.MIXUP_SWITCH_PROB,
-        mode=aug.MIXUP_MODE, label_smoothing=config.LOSS.LABEL_SMOOTHING,
-        num_classes=config.MODEL.NUM_CLASSES
-    ) if aug.MIXUP_PROB > 0.0 else None
-    
-    end = time.time()
     for i, (x, y) in enumerate(train_loader):
-        # measure data loading time
         optimizer.zero_grad()
-        data_time.update(time.time() - end)
 
-        # compute output
         x = x.cuda(non_blocking=True)
         y = y.cuda(non_blocking=True)
-
-        # x = x.cuda()
-        # y = y.cuda()
-        # print(x)
-
-        # if mixup_fn:
-            # x, y = mixup_fn(x, y)
 
         with autocast(enabled=config.AMP.ENABLED):
             if config.AMP.ENABLED and config.AMP.MEMORY_FORMAT == 'nwhc':
@@ -59,6 +33,7 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
             # loss = criterion(outputs, y)
 
             classification_loss, regression_loss = model([x, y])
+            # inputs =model(x)
 
             classification_loss = classification_loss.mean()
             regression_loss = regression_loss.mean()
@@ -84,39 +59,18 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
 
         scaler.step(optimizer)
         scaler.update()
-        # measure accuracy and record loss
-        losses.update(loss.item(), x.size(0))
+
+        # print('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
+        #                 epoch, i, float(classification_loss), float(regression_loss), loss))
 
         # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
 
         if i % config.PRINT_FREQ == 0:
-            msg = '=> Epoch[{0}][{1}/{2}]: ' \
-                  'Time {batch_time.val:.3f}s ({batch_time.avg:.3f}s)\t' \
-                  'Speed {speed:.1f} samples/s\t' \
-                  'Data {data_time.val:.3f}s ({data_time.avg:.3f}s)\t' \
-                  'Loss {loss.val:.5f} ({loss.avg:.5f})\t' \
-                  'Accuracy@1 {top1.val:.3f} ({top1.avg:.3f})\t' \
-                  'Accuracy@5 {top5.val:.3f} ({top5.avg:.3f})\t'.format(
-                      epoch, i, len(train_loader),
-                      batch_time=batch_time,
-                      speed=x.size(0)/batch_time.val,
-                      data_time=data_time, loss=losses, top1=top1, top5=top5)
-            logging.info(msg)
-            
-        print('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
-                    epoch, i, float(classification_loss), float(regression_loss), loss))
-        
+            print('Epoch: {} | Iteration: {} | Classification loss: {:1.5f} | Regression loss: {:1.5f} | Running loss: {:1.5f}'.format(
+                        epoch, i, float(classification_loss), float(regression_loss), loss))
+
         torch.cuda.synchronize()
-
-    if writer_dict and comm.is_main_process():
-        writer = writer_dict['writer']
-        global_steps = writer_dict['train_global_steps']
-        writer.add_scalar('train_loss', losses.avg, global_steps)
-        writer.add_scalar('train_top1', top1.avg, global_steps)
-        writer_dict['train_global_steps'] = global_steps + 1
-
+        
 
 @torch.no_grad()
 def test(config, val_loader, model, criterion, output_dir, tb_log_dir,
@@ -225,7 +179,7 @@ class AverageMeter(object):
         self.avg = 0
         self.sum = 0
         self.count = 0
-
+        
     def update(self, val, n=1):
         self.val = val
         self.sum += val * n
