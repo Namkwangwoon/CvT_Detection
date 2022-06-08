@@ -23,6 +23,8 @@ from core.utils import BBoxTransform, ClipBoxes
 from torchvision.ops import nms
 from .registry import register_model
 
+from torchvision.ops import focal_loss
+
 
 # From PyTorch internals
 def _ntuple(n):

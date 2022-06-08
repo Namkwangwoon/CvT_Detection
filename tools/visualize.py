@@ -84,7 +84,7 @@ def main():
     tb_log_dir = final_output_dir
 
     model = build_model(config)
-    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt_transformer_5.pth'))
+    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/lr_1e-7_no_scheduler/model_14.pth'))
     # model = torch.load()
     model.training = False
     model.to(torch.device('cuda:0'))
