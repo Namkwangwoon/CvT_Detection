@@ -565,7 +565,7 @@ class ConvolutionalVisionTransformer(nn.Module):
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=False):
-        pretrained = 'OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_29.pth'
+        # pretrained = 'OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_29.pth'
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained, map_location='cpu')
             logging.info(f'=> loading pretrained model {pretrained}')
@@ -616,8 +616,8 @@ class ConvolutionalVisionTransformer(nn.Module):
 
                     need_init_state_dict[k] = v
 
-            # del need_init_state_dict['head.weight']
-            # del need_init_state_dict['head.bias']
+            del need_init_state_dict['head.weight']
+            del need_init_state_dict['head.bias']
             
             self.load_state_dict(need_init_state_dict, strict=False)
 
@@ -673,9 +673,9 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print(x1.shape)
         # print(x2.shape)
 
-        x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
-        x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
-        x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
+        # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
+        # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
+        # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
 
         return x0, x1, x2
 
@@ -686,6 +686,7 @@ class ConvolutionalVisionTransformer(nn.Module):
             img_batch = inputs
 
         anchors = self.anchors(img_batch)
+        # x = x[0]
         x = self.forward_features(img_batch)
 
         # print('x0 : ', x[0].shape)
