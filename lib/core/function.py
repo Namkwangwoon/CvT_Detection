@@ -23,14 +23,6 @@ def train_one_epoch(config, train_loader, model, criterion, optimizer, epoch,
 
         x = x.cuda(non_blocking=True)
         y = y.cuda(non_blocking=True)
-        print('============ X, Y ============')
-        print(x.shape)
-        print(y.shape)
-        for yy in y:
-            print('============ YY ============')
-            print(yy)
-            print()
-        print()
 
         with autocast(enabled=config.AMP.ENABLED):
             if config.AMP.ENABLED and config.AMP.MEMORY_FORMAT == 'nwhc':
