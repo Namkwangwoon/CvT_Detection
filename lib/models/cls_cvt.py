@@ -548,8 +548,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
         # trunc_normal_(self.head.weight, std=0.02)
 
-        self.regressionModel = RegressionModel(256)
-        self.classificationModel = ClassificationModel(256, num_classes=80)
+        self.regressionModel = RegressionModel(384)
+        self.classificationModel = ClassificationModel(384, num_classes=80)
 
         # prior = 0.0001
 
@@ -566,8 +566,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.clipBoxes = ClipBoxes()
 
 
-    def init_weights(self, pretrained='', pretrained_layers=[], verbose=False):
-        # pretrained = 'OUTPUT/imagenet/cvt_transformer_5.pth'
+    def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
+        # pretrained = 'OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_29.pth'
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained, map_location='cpu')
             logging.info(f'=> loading pretrained model {pretrained}')
@@ -675,11 +675,12 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print(x1.shape)
         # print(x2.shape)
 
-        x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
-        x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
-        x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
+        # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
+        # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
+        # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
 
-        return x0, x1, x2
+        # return x0, x1, x2
+        return [x2]
 
     def forward(self, inputs):
         if self.training:
@@ -688,6 +689,7 @@ class ConvolutionalVisionTransformer(nn.Module):
             img_batch = inputs
 
         anchors = self.anchors(img_batch)
+        # x = x[0]
         x = self.forward_features(img_batch)
 
         # print('x0 : ', x[0].shape)
@@ -803,7 +805,7 @@ class ClassificationModel(nn.Module):
 
 
 class RegressionModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, feature_size=256):
+    def __init__(self, num_features_in, num_anchors=9, feature_size=384):
         super().__init__()
 
         self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
@@ -863,7 +865,8 @@ def get_cls_model(config, **kwargs):
     msvit.init_weights(
         config.MODEL.PRETRAINED,
         config.MODEL.PRETRAINED_LAYERS,
-        config.VERBOSE
+        # config.VERBOSE
+        True,
     )
 
 

@@ -84,7 +84,7 @@ def main():
     tb_log_dir = final_output_dir
 
     model = build_model(config)
-    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/lr_1e-7_no_scheduler/model_14.pth'))
+    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt_transformer_5.pth'))
     # model = torch.load()
     model.training = False
     model.to(torch.device('cuda:0'))
@@ -92,7 +92,7 @@ def main():
 
     ### COCO dataset ###
     # dataset_val = CocoDataset(args.coco_path, set_name='val2017',
-                                # transform=transforms.Compose([Normalizer(), Resizer()]))
+    #                             transform=transforms.Compose([Normalizer(), Resizer()]))
 
     dataset_val = CocoDataset(args.coco_path, set_name='train2017',
                                     transform=transforms.Compose([Normalizer(), Resizer()]))
@@ -107,69 +107,38 @@ def main():
 
     unnormalize = UnNormalizer()
     for idx, (x, y) in enumerate(valid_loader):
+        print('============ X, Y ============')
+        print(x.shape)
+        print(y.shape)
+        print()
+
         with torch.no_grad():
-            st = time.time()
-                x = x.cuda(non_blocking=True)
-                y = y.cuda(non_blocking=True)
-            
-            with autocast(enabled=config.AMP.ENABLED):
-                if config.AMP.ENABLED and config.AMP.MEMORY_FORMAT == 'nwhc':
-                    x = x.contiguous(memory_format=torch.channels_last)
-                    y = y.contiguous(memory_format=torch.channels_last)
-            
-                scores, classification, transformed_anchors = model(x)
-            
-            print('Elapsed time: {}'.format(time.time()-st))
-            print('============ SCORE ============')
-            print(scores.shape)
-            print(scores)
-            # print(torch.max(scores))  
-            print(torch.mean(scores))
-            print()
-
-            print('============ CLASSIFICATION ============')
-            print(classification.shape)
-            print(classification)
-            print()
-
-            print('============ TRANSFORMED_ANCHORS ============')
-            print(transformed_anchors.shape)
-            print(transformed_anchors)
-            print()
-            
-            idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
-            print('============ TRANSFORMED_ANCHORS ============')
-            print(idxs)
-            print('num final bbox : ', len(idxs[0]))
-            print()
-
-            x = x.cpu()
             img = np.array(255 * unnormalize(x[0, :, :, :])).copy()
 
             img[img<0] = 0
             img[img>255] = 255
-
             img = np.transpose(img, (1, 2, 0))
-
             img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB)
             cv2.imwrite('original.jpg', img)
 
-            for j in range(idxs[0].shape[0]):
-                bbox = transformed_anchors[idxs[0][j], :]
+            y = np.array(y)
+            print(y)
+            print(y.shape)
+
+            for j in range(y.shape[1]):
+                bbox = y[0][j][:4]
+                cls_label = y[0][j][4]
+                label_name = dataset_val.labels[int(cls_label)]
+
                 x1 = int(bbox[0])
                 y1 = int(bbox[1])
                 x2 = int(bbox[2])
                 y2 = int(bbox[3])
-                label_name = dataset_val.labels[int(classification[idxs[0][j]])]
-                # draw_caption(img, (x1, y1, x2, y2), label_name)
-                # print('box : ', (x1, y1, x2, y2))
 
+                draw_caption(img, (x1, y1, x2, y2), label_name)
                 cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 255, 255), thickness=1)
-                # print(label_name)
 
             cv2.imwrite('result.jpg', img)
-            # cv2.imshow('img', img)
-            # cv2.waitKey(0)
         break
 
 
