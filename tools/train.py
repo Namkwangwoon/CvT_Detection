@@ -171,7 +171,7 @@ def main():
     # criterion_eval.cuda()
 
     # lr_scheduler = build_lr_scheduler(config, optimizer, begin_epoch)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10], gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[12, 24], gamma=0.1)
 
     scaler = torch.cuda.amp.GradScaler(enabled=config.AMP.ENABLED)
 
