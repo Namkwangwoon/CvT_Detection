@@ -8,6 +8,7 @@ from collections import OrderedDict
 
 import math
 import numpy as np
+import matplotlib.pyplot as plt
 import scipy
 import torch
 import torch.nn as nn
@@ -565,7 +566,7 @@ class ConvolutionalVisionTransformer(nn.Module):
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
-        # pretrained = 'OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_29.pth'
+        # pretrained = 'OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_150.pth'
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained, map_location='cpu')
             logging.info(f'=> loading pretrained model {pretrained}')
@@ -615,7 +616,7 @@ class ConvolutionalVisionTransformer(nn.Module):
                         )
 
                     need_init_state_dict[k] = v
-
+            
             del need_init_state_dict['head.weight']
             del need_init_state_dict['head.bias']
             
@@ -666,12 +667,31 @@ class ConvolutionalVisionTransformer(nn.Module):
         #     x = self.norm(x)
         #     x = torch.mean(x, dim=1)
 
-        # print('OUTPUT : ', x.shape)
-        # print()
+        print('OUTPUT : ', x.shape)
+        print(x0.shape)
+        print(x1.shape)
+        print(x2.shape)
+        print()
 
-        # print(x0.shape)
-        # print(x1.shape)
-        # print(x2.shape)
+        processed = []
+        for feature_map in [x0, x1, x2]:
+            feature_map = feature_map.squeeze(0)
+            gray_scale = torch.sum(feature_map, 0)
+            gray_scale = gray_scale / feature_map.shape[0]
+            processed.append(gray_scale.data.cpu().numpy())
+
+        print('Feature Map : ', x.shape)
+        for feature_map in processed:
+            print(feature_map.shape)
+        print()
+
+        fig = plt.figure(figsize=(30, 50))
+        for i in range(len(processed)):
+            a = fig.add_subplot(5, 4, i+1)
+            imgplot = plt.imshow(processed[i])
+            a.axis("off")
+            a.set_title('{}'.format(i), fontsize=30)
+        plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
 
         # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)

@@ -84,18 +84,18 @@ def main():
     tb_log_dir = final_output_dir
 
     model = build_model(config)
-    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt_transformer_5.pth'))
+    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_150.pth'))
     # model = torch.load()
     model.training = False
     model.to(torch.device('cuda:0'))
     model.eval()
 
     ### COCO dataset ###
-    # dataset_val = CocoDataset(args.coco_path, set_name='val2017',
-                                # transform=transforms.Compose([Normalizer(), Resizer()]))
+    dataset_val = CocoDataset(args.coco_path, set_name='val2017',
+                                transform=transforms.Compose([Normalizer(), Resizer()]))
 
-    dataset_val = CocoDataset(args.coco_path, set_name='train2017',
-                                    transform=transforms.Compose([Normalizer(), Resizer()]))
+    # dataset_val = CocoDataset(args.coco_path, set_name='train2017',
+                                    # transform=transforms.Compose([Normalizer(), Resizer()]))
 
     if dataset_val is not None:
         # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=56, drop_last=False)
@@ -109,8 +109,8 @@ def main():
     for idx, (x, y) in enumerate(valid_loader):
         with torch.no_grad():
             st = time.time()
-                x = x.cuda(non_blocking=True)
-                y = y.cuda(non_blocking=True)
+            x = x.cuda(non_blocking=True)
+            y = y.cuda(non_blocking=True)
             
             with autocast(enabled=config.AMP.ENABLED):
                 if config.AMP.ENABLED and config.AMP.MEMORY_FORMAT == 'nwhc':
