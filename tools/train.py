@@ -92,6 +92,7 @@ def main():
         save_config(config, output_config_path)
 
     model = build_model(config)
+    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_50.pth'))
     model.to(torch.device('cuda'))
 
     # copy model file
@@ -140,9 +141,11 @@ def main():
     train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=sampler)
 
     if dataset_val is not None:
-        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
-        valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
-        
+        # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
+        # valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
+        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
+        valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=sampler_val)
+
     ### SOC dataset ###
     
     # config = Config()
@@ -186,10 +189,10 @@ def main():
 
         # train for one epoch
         logging.info('=> {} train start'.format(head))
-        with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
-            train_one_epoch(config, train_loader, model, criterion, optimizer,
-                            epoch, final_output_dir, tb_log_dir, writer_dict,
-                            scaler=scaler)
+        # with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
+        #     train_one_epoch(config, train_loader, model, criterion, optimizer,
+        #                     epoch, final_output_dir, tb_log_dir, writer_dict,
+        #                     scaler=scaler)
         logging.info(
             '=> {} train end, duration: {:.2f}s'
             .format(head, time.time()-start)

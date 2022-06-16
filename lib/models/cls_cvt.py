@@ -547,8 +547,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
         # trunc_normal_(self.head.weight, std=0.02)
 
-        self.regressionModel = RegressionModel(384)
-        self.classificationModel = ClassificationModel(384, num_classes=80)
+        self.regressionModel = RegressionModel(64)
+        self.classificationModel = ClassificationModel(64, num_classes=80)
 
         # prior = 0.0001
 
@@ -667,38 +667,38 @@ class ConvolutionalVisionTransformer(nn.Module):
         #     x = self.norm(x)
         #     x = torch.mean(x, dim=1)
 
-        print('OUTPUT : ', x.shape)
-        print(x0.shape)
-        print(x1.shape)
-        print(x2.shape)
-        print()
+        # print('OUTPUT : ', x.shape)
+        # print(x0.shape)
+        # print(x1.shape)
+        # print(x2.shape)
+        # print()
 
-        processed = []
-        for feature_map in [x0, x1, x2]:
-            feature_map = feature_map.squeeze(0)
-            gray_scale = torch.sum(feature_map, 0)
-            gray_scale = gray_scale / feature_map.shape[0]
-            processed.append(gray_scale.data.cpu().numpy())
+        # processed = []
+        # for feature_map in [x0, x1, x2]:
+        #     feature_map = feature_map.squeeze(0)
+        #     gray_scale = torch.sum(feature_map, 0)
+        #     gray_scale = gray_scale / feature_map.shape[0]
+        #     processed.append(gray_scale.data.cpu().numpy())
 
-        print('Feature Map : ', x.shape)
-        for feature_map in processed:
-            print(feature_map.shape)
-        print()
+        # print('Feature Map : ', x.shape)
+        # for feature_map in processed:
+        #     print(feature_map.shape)
+        # print()
 
-        fig = plt.figure(figsize=(30, 50))
-        for i in range(len(processed)):
-            a = fig.add_subplot(5, 4, i+1)
-            imgplot = plt.imshow(processed[i])
-            a.axis("off")
-            a.set_title('{}'.format(i), fontsize=30)
-        plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
+        # fig = plt.figure(figsize=(30, 50))
+        # for i in range(len(processed)):
+        #     a = fig.add_subplot(5, 4, i+1)
+        #     imgplot = plt.imshow(processed[i])
+        #     a.axis("off")
+        #     a.set_title('CvT stage {}'.format(i), fontsize=30)
+        # plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
 
         # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
         # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
 
         # return x0, x1, x2
-        return [x2]
+        return [x0]
 
     def forward(self, inputs):
         if self.training:
@@ -775,7 +775,7 @@ class ConvolutionalVisionTransformer(nn.Module):
 
 
 class ClassificationModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
+    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=64):
         super(ClassificationModel, self).__init__()
 
         self.num_classes = num_classes
@@ -823,7 +823,7 @@ class ClassificationModel(nn.Module):
 
 
 class RegressionModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, feature_size=384):
+    def __init__(self, num_features_in, num_anchors=9, feature_size=64):
         super().__init__()
 
         self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
@@ -880,12 +880,12 @@ def get_cls_model(config, **kwargs):
     #         config.VERBOSE
     #     )
 
-    msvit.init_weights(
-        config.MODEL.PRETRAINED,
-        config.MODEL.PRETRAINED_LAYERS,
-        # config.VERBOSE
-        True,
-    )
+    # msvit.init_weights(
+    #     config.MODEL.PRETRAINED,
+    #     config.MODEL.PRETRAINED_LAYERS,
+    #     # config.VERBOSE
+    #     True,
+    # )
 
 
     return msvit

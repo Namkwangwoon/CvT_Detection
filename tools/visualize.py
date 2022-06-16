@@ -76,7 +76,7 @@ def draw_caption(image, box, caption):
 def main():
     args = parse_args()
 
-    init_distributed(args)
+    # init_distributed(args)
     setup_cudnn(config)
 
     update_config(config, args)
@@ -84,7 +84,7 @@ def main():
     tb_log_dir = final_output_dir
 
     model = build_model(config)
-    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_150.pth'))
+    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_50.pth'))
     # model = torch.load()
     model.training = False
     model.to(torch.device('cuda:0'))
