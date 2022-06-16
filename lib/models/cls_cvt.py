@@ -569,7 +569,6 @@ class ConvolutionalVisionTransformer(nn.Module):
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
-        # pretrained = 'OUTPUT/imagenet/cvt_transformer_5.pth'
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained, map_location='cpu')
             logging.info(f'=> loading pretrained model {pretrained}')
@@ -681,7 +680,7 @@ class ConvolutionalVisionTransformer(nn.Module):
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
         # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
         
-        return self.fpn([x0, x1, x2])
+        return [x0, x1, x2]
 
     def forward(self, inputs):
         if self.training:
@@ -703,6 +702,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print('x2 : ', x[2].shape)
         # regression = self.regressionModel(x[2])
         # print('regression : ', regression.shape)
+        
+        x = self.fpn(x)
 
         regression = torch.cat([self.regressionModel(feature) for feature in x], dim=1)
         classification = torch.cat([self.classificationModel(feature) for feature in x], dim=1)
@@ -780,6 +781,11 @@ class PyramidFeatures(nn.Module):
         # # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
         # self.P5_1 = nn.ReLU()
         # self.P5_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
+        
+        
+        # self.x1 = nn.Conv2d(S1_size, feature_size, kernel_size=1, stride=1)
+        # self.x2 = nn.Conv2d(S2_size, feature_size, kernel_size=1, stride=1)
+        # self.x3 = nn.Conv2d(S3_size, feature_size, kernel_size=1, stride=1)
 
     def forward(self, inputs):
         S1, S2, S3 = inputs
@@ -801,8 +807,12 @@ class PyramidFeatures(nn.Module):
 
         # P5_x = self.P5_1(P4_x)
         # P5_x = self.P5_2(P5_x)
+        
+        # P1_x = self.x1(S1)
+        # P2_x = self.x2(S2)
+        # P3_x = self.x3(S3)
 
-        # return [P1_x, P2_x, P3_x, P4_x, P5_x]
+        # # return [P1_x, P2_x, P3_x, P4_x, P5_x]
         return [P1_x, P2_x, P3_x]
 
 
@@ -910,14 +920,14 @@ def get_cls_model(config, **kwargs):
             config.MODEL.PRETRAINED,
             config.MODEL.PRETRAINED_LAYERS,
             # config.VERBOSE
-            True,
+            False,
         )
 
     msvit.init_weights(
         config.MODEL.PRETRAINED,
         config.MODEL.PRETRAINED_LAYERS,
         # config.VERBOSE
-        True,
+        False,
     )
 
 

@@ -225,7 +225,8 @@ def main():
             fname_full
         )
 
-        lr_scheduler.step(epoch=epoch+1)
+        # lr_scheduler.step(epoch=epoch+1)
+        lr_scheduler.step()
         lr = lr_scheduler.get_last_lr()[0]
         logging.info(f'=> lr: {lr}')
 
