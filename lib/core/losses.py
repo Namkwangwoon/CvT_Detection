@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from torchvision.ops.focal_loss import sigmoid_focal_loss
+
 def calc_iou(a, b):
     area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
 
@@ -25,7 +27,6 @@ class FocalLoss(nn.Module):
     #def __init__(self):
 
     def forward(self, classifications, regressions, anchors, annotations):
-        
         alpha = 0.25
         gamma = 2.0
         batch_size = classifications.shape[0]
@@ -80,9 +81,8 @@ class FocalLoss(nn.Module):
 
                 continue
 
-
-
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4]) # num_anchors x num_annotations
+            
             IoU_max, IoU_argmax = torch.max(IoU, dim=1) # num_anchors x 1
 
             #import pdb
@@ -125,6 +125,7 @@ class FocalLoss(nn.Module):
                 cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape))
 
             classification_losses.append(cls_loss.sum()/torch.clamp(num_positive_anchors.float(), min=1.0))
+            # classification_losses.append(sigmoid_focal_loss(classification, targets, alpha, gamma, "sum"))
 
             # compute the loss for regression
 

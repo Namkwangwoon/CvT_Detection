@@ -177,6 +177,7 @@ def main():
 
     logging.info('=> start training')
     for epoch in range(begin_epoch, config.TRAIN.END_EPOCH):
+        
         head = 'Epoch[{}]:'.format(epoch)
         logging.info('=> {} epoch start'.format(head))
 
@@ -199,7 +200,7 @@ def main():
         logging.info('=> {} validate start'.format(head))
         val_start = time.time()
 
-        if epoch >= config.TRAIN.EVAL_BEGIN_EPOCH:
+        if epoch >= 0:
             # perf = test(
             #     config, valid_loader, model, criterion_eval,
             #     final_output_dir, tb_log_dir, writer_dict,
@@ -224,7 +225,8 @@ def main():
             fname_full
         )
 
-        lr_scheduler.step(epoch=epoch+1)
+        # lr_scheduler.step(epoch=epoch+1)
+        lr_scheduler.step()
         lr = lr_scheduler.get_last_lr()[0]
         logging.info(f'=> lr: {lr}')
 
