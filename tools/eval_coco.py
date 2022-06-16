@@ -13,7 +13,7 @@ def evaluate_coco(dataset, model, threshold=0.05):
         results = []
         image_ids = []
 
-        for index in range(len(dataset)//100):
+        for index in range(len(dataset)//10):
 
             data = dataset[index]
             # scale = data['scale']
