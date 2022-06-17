@@ -669,32 +669,45 @@ class ConvolutionalVisionTransformer(nn.Module):
         #     x = rearrange(x, 'b c h w -> b (h w) c')
         #     x = self.norm(x)
         #     x = torch.mean(x, dim=1)
+        
+        # print()
+        # print("*********** CLS TOKEN **************")
+        # print("cls_tokens0 :", cls_tokens0.shape)
+        # print("cls_tokens1 :", cls_tokens1.shape)
+        # print("cls_tokens2 :", cls_tokens2.shape)
+        # print()
+        
+        # x0 = cls_tokens0.permute(0, 2, 1).unsqueeze(-1)
+        # x1 = cls_tokens1.permute(0, 2, 1).unsqueeze(-1)
+        # x2 = cls_tokens2.permute(0, 2, 1).unsqueeze(-1)
 
-        print('OUTPUT : ', x.shape)
-        print(x0.shape)
-        print(x1.shape)
-        print(x2.shape)
-        print()
+        # print('OUTPUT : ', x.shape)
+        # print(x0.shape)
+        # print(x1.shape)
+        # print(x2.shape)
+        # print()
+        
+        # if not self.training:
 
-        processed = []
-        for feature_map in [x0, x1, x2]:
-            feature_map = feature_map.squeeze(0)
-            gray_scale = torch.sum(feature_map, 0)
-            gray_scale = gray_scale / feature_map.shape[0]
-            processed.append(gray_scale.data.cpu().numpy())
+        #     processed = []
+        #     for feature_map in [x0, x1, x2]:
+        #         feature_map = feature_map.squeeze(0)
+        #         gray_scale = torch.sum(feature_map, 0)
+        #         gray_scale = gray_scale / feature_map.shape[0]
+        #         processed.append(gray_scale.data.cpu().numpy())
 
-        print('Feature Map : ', x.shape)
-        for feature_map in processed:
-            print(feature_map.shape)
-        print()
+        #     print('Feature Map : ', x.shape)
+        #     for feature_map in processed:
+        #         print(feature_map.shape)
+        #     print()
 
-        fig = plt.figure(figsize=(30, 50))
-        for i in range(len(processed)):
-            a = fig.add_subplot(5, 4, i+1)
-            imgplot = plt.imshow(processed[i])
-            a.axis("off")
-            a.set_title('{}'.format(i), fontsize=30)
-        plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
+        #     fig = plt.figure(figsize=(30, 50))
+        #     for i in range(len(processed)):
+        #         a = fig.add_subplot(5, 4, i+1)
+        #         imgplot = plt.imshow(processed[i])
+        #         a.axis("off")
+        #         a.set_title('{}'.format(i), fontsize=30)
+        #     plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
 
         # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
@@ -727,9 +740,6 @@ class ConvolutionalVisionTransformer(nn.Module):
 
         regression = torch.cat([self.regressionModel(feature) for feature in x], dim=1)
         classification = torch.cat([self.classificationModel(feature) for feature in x], dim=1)
-
-        # print('regression : ', regression.shape)
-        # print('classification : ', classification.shape)
 
         if self.training:
             return self.focalLoss(classification, regression, anchors, annotations)
