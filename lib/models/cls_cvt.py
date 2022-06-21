@@ -554,13 +554,13 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.regressionModel = RegressionModel(256)
         self.classificationModel = ClassificationModel(256, num_classes=80)
 
-        # prior = 0.0001
+        prior = 0.01
 
-        # self.classificationModel.output.weight.data.fill_(0)
-        # self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
+        self.classificationModel.output.weight.data.fill_(0)
+        self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
 
-        # self.regressionModel.output.weight.data.fill_(0)
-        # self.regressionModel.output.bias.data.fill_(0)
+        self.regressionModel.output.weight.data.fill_(0)
+        self.regressionModel.output.bias.data.fill_(0)
 
         self.anchors = Anchors()
         self.focalLoss = losses.FocalLoss()
@@ -670,31 +670,31 @@ class ConvolutionalVisionTransformer(nn.Module):
         #     x = self.norm(x)
         #     x = torch.mean(x, dim=1)
 
-        print('OUTPUT : ', x.shape)
-        print(x0.shape)
-        print(x1.shape)
-        print(x2.shape)
-        print()
+#         print('OUTPUT : ', x.shape)
+#         print(x0.shape)
+#         print(x1.shape)
+#         print(x2.shape)
+#         print()
 
-        processed = []
-        for feature_map in [x0, x1, x2]:
-            feature_map = feature_map.squeeze(0)
-            gray_scale = torch.sum(feature_map, 0)
-            gray_scale = gray_scale / feature_map.shape[0]
-            processed.append(gray_scale.data.cpu().numpy())
+#         processed = []
+#         for feature_map in [x0, x1, x2]:
+#             feature_map = feature_map.squeeze(0)
+#             gray_scale = torch.sum(feature_map, 0)
+#             gray_scale = gray_scale / feature_map.shape[0]
+#             processed.append(gray_scale.data.cpu().numpy())
 
-        print('Feature Map : ', x.shape)
-        for feature_map in processed:
-            print(feature_map.shape)
-        print()
+#         print('Feature Map : ', x.shape)
+#         for feature_map in processed:
+#             print(feature_map.shape)
+#         print()
 
-        fig = plt.figure(figsize=(30, 50))
-        for i in range(len(processed)):
-            a = fig.add_subplot(5, 4, i+1)
-            imgplot = plt.imshow(processed[i])
-            a.axis("off")
-            a.set_title('{}'.format(i), fontsize=30)
-        plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
+#         fig = plt.figure(figsize=(30, 50))
+#         for i in range(len(processed)):
+#             a = fig.add_subplot(5, 4, i+1)
+#             imgplot = plt.imshow(processed[i])
+#             a.axis("off")
+#             a.set_title('{}'.format(i), fontsize=30)
+#         plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
 
         # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
@@ -707,6 +707,9 @@ class ConvolutionalVisionTransformer(nn.Module):
             img_batch, annotations = inputs
         else:
             img_batch = inputs
+
+        # print('===== IMAGE_BATCH =====')
+        # print()
 
         anchors = self.anchors(img_batch)
         x = self.forward_features(img_batch)
@@ -734,7 +737,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         if self.training:
             return self.focalLoss(classification, regression, anchors, annotations)
         else:
-            # print('inputs : ', img_batch.shape)
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)
 
@@ -837,7 +839,7 @@ class PyramidFeatures(nn.Module):
 
 
 class ClassificationModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
+    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=64):
         super(ClassificationModel, self).__init__()
 
         self.num_classes = num_classes

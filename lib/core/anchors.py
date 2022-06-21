@@ -9,7 +9,6 @@ class Anchors(nn.Module):
 
         if pyramid_levels is None:
             self.pyramid_levels = [2, 3, 4]
-            # self.pyramid_levels = [4]
         if strides is None:
             self.strides = [2 ** x for x in self.pyramid_levels]
         if sizes is None:
@@ -20,7 +19,7 @@ class Anchors(nn.Module):
             self.scales = np.array([2 ** 0, 2 ** (1.0 / 3.0), 2 ** (2.0 / 3.0)])
 
     def forward(self, image):
-        
+
         image_shape = image.shape[2:]
         image_shape = np.array(image_shape)
         image_shapes = [(image_shape + 2 ** x - 1) // (2 ** x) for x in self.pyramid_levels]
@@ -46,6 +45,8 @@ def generate_anchors(base_size=16, ratios=None, scales=None):
     scales w.r.t. a reference window.
     """
 
+    # print('===== GENERATE_ANCHORS =====')
+
     if ratios is None:
         ratios = np.array([0.5, 1, 2])
 
@@ -70,10 +71,15 @@ def generate_anchors(base_size=16, ratios=None, scales=None):
     # transform from (x_ctr, y_ctr, w, h) -> (x1, y1, x2, y2)
     anchors[:, 0::2] -= np.tile(anchors[:, 2] * 0.5, (2, 1)).T
     anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T
+    # print(anchors.shape)
+    # print(anchors[0])
 
     return anchors
 
 def compute_shape(image_shape, pyramid_levels):
+
+    # print('===== COMPUTE_SHAPE =====')
+
     """Compute shapes based on pyramid levels.
     :param image_shape:
     :param pyramid_levels:
@@ -93,6 +99,7 @@ def anchors_for_shape(
     sizes=None,
     shapes_callback=None,
 ):
+    # print('===== ANCHORS_FOR_SHAPE =====')
 
     image_shapes = compute_shape(image_shape, pyramid_levels)
 
@@ -107,6 +114,9 @@ def anchors_for_shape(
 
 
 def shift(shape, stride, anchors):
+
+    # print('===== SHIFT =====')
+
     shift_x = (np.arange(0, shape[1]) + 0.5) * stride
     shift_y = (np.arange(0, shape[0]) + 0.5) * stride
 
@@ -125,5 +135,8 @@ def shift(shape, stride, anchors):
     K = shifts.shape[0]
     all_anchors = (anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
     all_anchors = all_anchors.reshape((K * A, 4))
+
+    # print(all_anchors.shape)
+    # print(all_anchors[0])
 
     return all_anchors
