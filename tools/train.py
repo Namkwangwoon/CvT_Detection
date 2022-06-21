@@ -37,6 +37,7 @@ from utils.utils import save_model_on_master
 from dataset.COCOdataloader import CocoDataset, Normalizer, Augmenter, Resizer, CSVDataset, AspectRatioBasedSampler, collater
 from torchvision import transforms
 from torch.utils.data import DataLoader
+from utils.utils import visualize_image
 
 from dataset.SOCdataloader import Config, get_loader
 from eval_coco import evaluate_coco
@@ -141,13 +142,16 @@ def main():
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
 
     sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
-    train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=sampler)
+    # train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=sampler)
+    train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
 
     if dataset_val is not None:
         # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
         # valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
         # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
-        valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=None)
+        # valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=sampler)
+        valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_size=config.TEST.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
+
         
     ### SOC dataset ###
     
@@ -213,12 +217,12 @@ def main():
             #     final_output_dir, tb_log_dir, writer_dict,
             #     args.distributed
             # )
-        #     try:
-        #         evaluate_coco(dataset_val, model)
-        #     except Exception as e:
-        #         print(e)
-        #         print()
-            eval_training(model, valid_loader, epoch)
+            try:
+                visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
+                evaluate_coco(dataset_val, model)
+            except Exception as e:
+                print(e)
+                print()
         else:
             model.eval()
 
