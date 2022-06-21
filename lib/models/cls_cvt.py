@@ -711,7 +711,7 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print('===== IMAGE_BATCH =====')
         # print()
 
-        anchors = self.anchors(img_batch)
+        x = self.forward_features(img_batch)
 
         # print('x0 : ', x[0].shape)
         # regression = self.regressionModel(x[0])
@@ -726,11 +726,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print('regression : ', regression.shape)
         
         features = self.fpn(x)
-        
-        print()
-        for f in features:
-            print(f.shape)
-        print()
 
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
         
