@@ -93,6 +93,10 @@ def main():
 
     model = build_model(config)
     model.to(torch.device('cuda'))
+    
+    ## model의 모든 가중치 학습
+    for param in model.parameters():
+        param.requires_grad_(True)
 
     # copy model file
     summary_model_on_master(model, config, final_output_dir, True)
@@ -126,11 +130,12 @@ def main():
     # train_loader = build_dataloader(config, True, args.distributed)
     # valid_loader = build_dataloader(config, False, args.distributed)
 
+
     ### COCO dataset ###
     
     # Create the data loaders
-    # dataset_train = CocoDataset(args.coco_path, set_name='train2017',
-    #                             transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+    dataset_train = CocoDataset(args.coco_path, set_name='train2017',
+                                transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
     dataset_train = CocoDataset(args.coco_path, set_name='train2017',
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
     dataset_val = CocoDataset(args.coco_path, set_name='val2017',
@@ -142,6 +147,9 @@ def main():
     if dataset_val is not None:
         sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
         valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
+        
+    ###
+        
         
     ### SOC dataset ###
     
@@ -155,6 +163,7 @@ def main():
     # valid_loader = get_loader(valid_image_root, valid_gt_root, batchsize=config.TEST.BATCH_SIZE_PER_GPU, trainsize=224)
     
     ###
+
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
@@ -171,7 +180,7 @@ def main():
     # criterion_eval.cuda()
 
     # lr_scheduler = build_lr_scheduler(config, optimizer, begin_epoch)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[12, 24], gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10], gamma=0.1)
 
     scaler = torch.cuda.amp.GradScaler(enabled=config.AMP.ENABLED)
 
@@ -206,11 +215,12 @@ def main():
             #     final_output_dir, tb_log_dir, writer_dict,
             #     args.distributed
             # )
-            try:
-                evaluate_coco(dataset_val, model)
-            except Exception as e:
-                print(e)
-                print()
+        #     try:
+        #         evaluate_coco(dataset_val, model)
+        #     except Exception as e:
+        #         print(e)
+        #         print()
+            eval_training(model, valid_loader, epoch)
         else:
             model.eval()
 

@@ -164,31 +164,27 @@ class FocalLoss(nn.Module):
                     targets = targets/torch.Tensor([[0.1, 0.1, 0.2, 0.2]])
 
                 negative_indices = 1 + (~positive_indices)
+                
+                ## original
 
-                # regression_diff = torch.abs(targets - regression[positive_indices, :])
+                regression_diff = torch.abs(targets - regression[positive_indices, :])
 
-                # regression_loss = torch.where(
-                #     torch.le(regression_diff, 1.0 / 9.0),
-                #     0.5 * 9.0 * torch.pow(regression_diff, 2),
-                #     regression_diff - 0.5 / 9.0
-                # )
+                regression_loss = torch.where(
+                    torch.le(regression_diff, 1.0 / 9.0),
+                    0.5 * 9.0 * torch.pow(regression_diff, 2),
+                    regression_diff - 0.5 / 9.0
+                )
                 
-                ## MSE Loss
+                ## MSE Loss (YOLOv3)
                 
-                regression_loss = F.mse_loss(regression[positive_indices, :], targets, reduction='mean') * 2.0
+                # regression_loss = F.mse_loss(regression[positive_indices, :], targets, reduction='mean') * 2.0
                 
-                ## GIoU Loss
+                ## GIoU / DIoU / CIoU Loss => 1 - * (YOLOv4)
                 
-                # for r, t in zip(regression[positive_indices, :], targets):
-                #     iou = bbox_iou(r, t, x1y1x2y2=False, CIoU=True)
-                    
-                #     lbox += (1.0 - iou).mean()
-                    
-                # lbox *= 0.05
+                # iou = bboxes_iou(regression[positive_indices, :], targets, xyxy=False, CIoU=True)
+                # regression_loss = 1 - (iou * torch.eye(iou.shape[0], device="cuda")).sum(dim=1)
                 
-                # regression_losses.append(regression_loss.mean())
-                regression_losses.append(regression_loss)
-                # regression_losses.append(lbox)
+                regression_losses.append(regression_loss.mean())
             else:
                 if torch.cuda.is_available():
                     regression_losses.append(torch.tensor(0).float().cuda())
@@ -197,48 +193,88 @@ class FocalLoss(nn.Module):
 
         return torch.stack(classification_losses).mean(dim=0, keepdim=True), torch.stack(regression_losses).mean(dim=0, keepdim=True)
     
-def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-9):
-    # Returns the IoU of box1 to box2. box1 is 4, box2 is nx4
-    box2 = box2.T
+def bboxes_iou(bboxes_a, bboxes_b, xyxy=True, GIoU=False, DIoU=False, CIoU=False):
+    """Calculate the Intersection of Unions (IoUs) between bounding boxes.
+    IoU is calculated as a ratio of area of the intersection
+    and area of the union.
+    Args:
+        bbox_a (array): An array whose shape is :math:`(N, 4)`.
+            :math:`N` is the number of bounding boxes.
+            The dtype should be :obj:`numpy.float32`.
+        bbox_b (array): An array similar to :obj:`bbox_a`,
+            whose shape is :math:`(K, 4)`.
+            The dtype should be :obj:`numpy.float32`.
+    Returns:
+        array:
+        An array whose shape is :math:`(N, K)`. \
+        An element at index :math:`(n, k)` contains IoUs between \
+        :math:`n` th bounding box in :obj:`bbox_a` and :math:`k` th bounding \
+        box in :obj:`bbox_b`.
+    from: https://github.com/chainer/chainercv
+    https://github.com/ultralytics/yolov3/blob/eca5b9c1d36e4f73bf2f94e141d864f1c2739e23/utils/utils.py#L262-L282
+    """
+    if bboxes_a.shape[1] != 4 or bboxes_b.shape[1] != 4:
+        raise IndexError
 
-    # # Get the coordinates of bounding boxes
-    if x1y1x2y2:  # x1, y1, x2, y2 = box1
-        b1_x1, b1_y1, b1_x2, b1_y2 = box1[0], box1[1], box1[2], box1[3]
-        b2_x1, b2_y1, b2_x2, b2_y2 = box2[0], box2[1], box2[2], box2[3]
-    else:  # transform from xywh to xyxy
-        b1_x1, b1_x2 = box1[0] - box1[2] / 2, box1[0] + box1[2] / 2
-        b1_y1, b1_y2 = box1[1] - box1[3] / 2, box1[1] + box1[3] / 2
-        b2_x1, b2_x2 = box2[0] - box2[2] / 2, box2[0] + box2[2] / 2
-        b2_y1, b2_y2 = box2[1] - box2[3] / 2, box2[1] + box2[3] / 2
+    if xyxy:
+        # intersection top left
+        tl = torch.max(bboxes_a[:, None, :2], bboxes_b[:, :2])
+        # intersection bottom right
+        br = torch.min(bboxes_a[:, None, 2:], bboxes_b[:, 2:])
+        # convex (smallest enclosing box) top left and bottom right
+        con_tl = torch.min(bboxes_a[:, None, :2], bboxes_b[:, :2])
+        con_br = torch.max(bboxes_a[:, None, 2:], bboxes_b[:, 2:])
+        # centerpoint distance squared
+        rho2 = ((bboxes_a[:, None, 0] + bboxes_a[:, None, 2]) - (bboxes_b[:, 0] + bboxes_b[:, 2])) ** 2 / 4 + (
+                (bboxes_a[:, None, 1] + bboxes_a[:, None, 3]) - (bboxes_b[:, 1] + bboxes_b[:, 3])) ** 2 / 4
 
-    # Intersection area
-    inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
-            (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
+        w1 = bboxes_a[:, 2] - bboxes_a[:, 0]
+        h1 = bboxes_a[:, 3] - bboxes_a[:, 1]
+        w2 = bboxes_b[:, 2] - bboxes_b[:, 0]
+        h2 = bboxes_b[:, 3] - bboxes_b[:, 1]
 
-    # Union Area
-    w1, h1 = b1_x2 - b1_x1, b1_y2 - b1_y1 + eps
-    w2, h2 = b2_x2 - b2_x1, b2_y2 - b2_y1 + eps
-    union = w1 * h1 + w2 * h2 - inter + eps
+        area_a = torch.prod(bboxes_a[:, 2:] - bboxes_a[:, :2], 1)
+        area_b = torch.prod(bboxes_b[:, 2:] - bboxes_b[:, :2], 1)
+    else:
+        # intersection top left
+        tl = torch.max((bboxes_a[:, None, :2] - bboxes_a[:, None, 2:] / 2),
+                       (bboxes_b[:, :2] - bboxes_b[:, 2:] / 2))
+        # intersection bottom right
+        br = torch.min((bboxes_a[:, None, :2] + bboxes_a[:, None, 2:] / 2),
+                       (bboxes_b[:, :2] + bboxes_b[:, 2:] / 2))
 
-    iou = inter / union
+        # convex (smallest enclosing box) top left and bottom right
+        con_tl = torch.min((bboxes_a[:, None, :2] - bboxes_a[:, None, 2:] / 2),
+                           (bboxes_b[:, :2] - bboxes_b[:, 2:] / 2))
+        con_br = torch.max((bboxes_a[:, None, :2] + bboxes_a[:, None, 2:] / 2),
+                           (bboxes_b[:, :2] + bboxes_b[:, 2:] / 2))
+        # centerpoint distance squared
+        rho2 = ((bboxes_a[:, None, :2] - bboxes_b[:, :2]) ** 2 / 4).sum(dim=-1)
+
+        w1 = bboxes_a[:, 2]
+        h1 = bboxes_a[:, 3]
+        w2 = bboxes_b[:, 2]
+        h2 = bboxes_b[:, 3]
+
+        area_a = torch.prod(bboxes_a[:, 2:], 1)
+        area_b = torch.prod(bboxes_b[:, 2:], 1)
+    en = (tl < br).type(tl.type()).prod(dim=2)
+    area_i = torch.prod(br - tl, 2) * en  # * ((tl < br).all())
+    area_u = area_a[:, None] + area_b - area_i
+    iou = area_i / area_u
+
     if GIoU or DIoU or CIoU:
-        # convex (smallest enclosing box) width
-        cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)
-        ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # convex height
-        if CIoU or DIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
-            c2 = cw ** 2 + ch ** 2 + eps  # convex diagonal squared
-            rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 +
-                    (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center distance squared
+        if GIoU:  # Generalized IoU https://arxiv.org/pdf/1902.09630.pdf
+            area_c = torch.prod(con_br - con_tl, 2)  # convex area
+            return iou - (area_c - area_u) / area_c  # GIoU
+        if DIoU or CIoU:  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
+            # convex diagonal squared
+            c2 = torch.pow(con_br - con_tl, 2).sum(dim=2) + 1e-16
             if DIoU:
                 return iou - rho2 / c2  # DIoU
             elif CIoU:  # https://github.com/Zzh-tju/DIoU-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
-                v = (4 / math.pi ** 2) * \
-                    torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
+                v = (4 / math.pi ** 2) * torch.pow(torch.atan(w1 / h1).unsqueeze(1) - torch.atan(w2 / h2), 2)
                 with torch.no_grad():
-                    alpha = v / ((1 + eps) - iou + v)
+                    alpha = v / (1 - iou + v)
                 return iou - (rho2 / c2 + v * alpha)  # CIoU
-        else:  # GIoU https://arxiv.org/pdf/1902.09630.pdf
-            c_area = cw * ch + eps  # convex area
-            return iou - (c_area - union) / c_area  # GIoU
-    else:
-        return iou  # IoU
+    return iou
