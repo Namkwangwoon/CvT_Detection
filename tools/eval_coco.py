@@ -21,22 +21,7 @@ def evaluate_coco(dataset, model, threshold=0.05):
 
         for index in range(len(dataset)//10):
             data = dataset[index]
-            x = data['img']
-
-            img = np.transpose(x, (2, 0, 1))
-            img = np.array(255 * unnormalize(img[:, :, :])).copy()
-
-            img[img<0] = 0
-            img[img>255] = 255
-
-            img = np.transpose(img, (1, 2, 0))
-            img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB)
-            cv2.imwrite('val_original.jpg', img)
-            
-            w_scale = data['w_scale']
-            h_scale = data['h_scale']
-            # scale = 1.0
-
+            scale = 1.0
             # run network
             if torch.cuda.is_available():
                 scores, labels, boxes = model(data['img'].permute(2, 0, 1).cuda().float().unsqueeze(dim=0))

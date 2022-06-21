@@ -24,6 +24,8 @@ from core.utils import BBoxTransform, ClipBoxes
 from torchvision.ops import nms
 from .registry import register_model
 
+from torchvision.ops import focal_loss
+
 
 # From PyTorch internals
 def _ntuple(n):
@@ -546,6 +548,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         # Classifier head
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
         # trunc_normal_(self.head.weight, std=0.02)
+        
+        self.fpn = PyramidFeatures(64, 192, 384)
 
         self.regressionModel = RegressionModel(256)
         self.classificationModel = ClassificationModel(256, num_classes=80)
@@ -566,7 +570,6 @@ class ConvolutionalVisionTransformer(nn.Module):
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
-        # pretrained = 'OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_150.pth'
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained, map_location='cpu')
             logging.info(f'=> loading pretrained model {pretrained}')
@@ -667,38 +670,37 @@ class ConvolutionalVisionTransformer(nn.Module):
         #     x = self.norm(x)
         #     x = torch.mean(x, dim=1)
 
-        # print('OUTPUT : ', x.shape)
-        # print(x0.shape)
-        # print(x1.shape)
-        # print(x2.shape)
-        # print()
+#         print('OUTPUT : ', x.shape)
+#         print(x0.shape)
+#         print(x1.shape)
+#         print(x2.shape)
+#         print()
 
-        # processed = []
-        # for feature_map in [x0, x1, x2]:
-        #     feature_map = feature_map.squeeze(0)
-        #     gray_scale = torch.sum(feature_map, 0)
-        #     gray_scale = gray_scale / feature_map.shape[0]
-        #     processed.append(gray_scale.data.cpu().numpy())
+#         processed = []
+#         for feature_map in [x0, x1, x2]:
+#             feature_map = feature_map.squeeze(0)
+#             gray_scale = torch.sum(feature_map, 0)
+#             gray_scale = gray_scale / feature_map.shape[0]
+#             processed.append(gray_scale.data.cpu().numpy())
 
-        # print('Feature Map : ', x.shape)
-        # for feature_map in processed:
-        #     print(feature_map.shape)
-        # print()
+#         print('Feature Map : ', x.shape)
+#         for feature_map in processed:
+#             print(feature_map.shape)
+#         print()
 
-        # fig = plt.figure(figsize=(30, 50))
-        # for i in range(len(processed)):
-        #     a = fig.add_subplot(5, 4, i+1)
-        #     imgplot = plt.imshow(processed[i])
-        #     a.axis("off")
-        #     a.set_title('CvT stage {}'.format(i), fontsize=30)
-        # plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
+#         fig = plt.figure(figsize=(30, 50))
+#         for i in range(len(processed)):
+#             a = fig.add_subplot(5, 4, i+1)
+#             imgplot = plt.imshow(processed[i])
+#             a.axis("off")
+#             a.set_title('{}'.format(i), fontsize=30)
+#         plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
 
-        x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
-        x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
-        x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
-
-        return x0, x1, x2
-        # return [x0]
+        # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
+        # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
+        # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
+        
+        return [x0, x1, x2]
 
     def forward(self, inputs):
         if self.training:
@@ -710,7 +712,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print()
 
         anchors = self.anchors(img_batch)
-        # x = x[0]
         x = self.forward_features(img_batch)
 
         # print('x0 : ', x[0].shape)
@@ -724,6 +725,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print('x2 : ', x[2].shape)
         # regression = self.regressionModel(x[2])
         # print('regression : ', regression.shape)
+        
+        x = self.fpn(x)
 
         regression = torch.cat([self.regressionModel(feature) for feature in x], dim=1)
         classification = torch.cat([self.classificationModel(feature) for feature in x], dim=1)
@@ -776,6 +779,65 @@ class ConvolutionalVisionTransformer(nn.Module):
             return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
 
 
+class PyramidFeatures(nn.Module):
+    def __init__(self, S1_size, S2_size, S3_size, feature_size=256):
+        super(PyramidFeatures, self).__init__()
+        
+        # upsample C5 to get P5 from the FPN paper
+        self.P3_1 = nn.Conv2d(S3_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P3_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        self.P3_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+
+        # add P5 elementwise to C4
+        self.P2_1 = nn.Conv2d(S2_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P2_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        self.P2_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+
+        # add P4 elementwise to C3
+        self.P1_1 = nn.Conv2d(S1_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P1_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+
+        # # "P6 is obtained via a 3x3 stride-2 conv on C5"
+        # self.P4 = nn.Conv2d(S3_size, feature_size, kernel_size=3, stride=2, padding=1)
+
+        # # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
+        # self.P5_1 = nn.ReLU()
+        # self.P5_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
+        
+        
+        # self.x1 = nn.Conv2d(S1_size, feature_size, kernel_size=1, stride=1)
+        # self.x2 = nn.Conv2d(S2_size, feature_size, kernel_size=1, stride=1)
+        # self.x3 = nn.Conv2d(S3_size, feature_size, kernel_size=1, stride=1)
+
+    def forward(self, inputs):
+        S1, S2, S3 = inputs
+
+        P3_x = self.P3_1(S3)
+        P3_upsampled_x = self.P3_upsampled(P3_x)
+        P3_x = self.P3_2(P3_x)
+
+        P2_x = self.P2_1(S2)
+        P2_x = P3_upsampled_x + P2_x
+        P2_upsampled_x = self.P2_upsampled(P2_x)
+        P2_x = self.P2_2(P2_x)
+
+        P1_x = self.P1_1(S1)
+        P1_x = P1_x + P2_upsampled_x
+        P1_x = self.P1_2(P1_x)
+
+        # P4_x = self.P4(S3)
+
+        # P5_x = self.P5_1(P4_x)
+        # P5_x = self.P5_2(P5_x)
+        
+        # P1_x = self.x1(S1)
+        # P2_x = self.x2(S2)
+        # P3_x = self.x3(S3)
+
+        # # return [P1_x, P2_x, P3_x, P4_x, P5_x]
+        return [P1_x, P2_x, P3_x]
+
+
 class ClassificationModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=64):
         super(ClassificationModel, self).__init__()
@@ -825,7 +887,7 @@ class ClassificationModel(nn.Module):
 
 
 class RegressionModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, feature_size=64):
+    def __init__(self, num_features_in, num_anchors=9, feature_size=256):
         super().__init__()
 
         self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
@@ -875,19 +937,20 @@ def get_cls_model(config, **kwargs):
         spec=msvit_spec
     )
 
-    # if config.MODEL.INIT_WEIGHTS:
-    #     msvit.init_weights(
-    #         config.MODEL.PRETRAINED,
-    #         config.MODEL.PRETRAINED_LAYERS,
-    #         config.VERBOSE
-    #     )
+    if config.MODEL.INIT_WEIGHTS:
+        msvit.init_weights(
+            config.MODEL.PRETRAINED,
+            config.MODEL.PRETRAINED_LAYERS,
+            # config.VERBOSE
+            False,
+        )
 
-    # msvit.init_weights(
-    #     config.MODEL.PRETRAINED,
-    #     config.MODEL.PRETRAINED_LAYERS,
-    #     # config.VERBOSE
-    #     True,
-    # )
+    msvit.init_weights(
+        config.MODEL.PRETRAINED,
+        config.MODEL.PRETRAINED_LAYERS,
+        # config.VERBOSE
+        False,
+    )
 
 
     return msvit
