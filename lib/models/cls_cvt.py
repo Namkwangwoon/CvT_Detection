@@ -547,16 +547,16 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
         # trunc_normal_(self.head.weight, std=0.02)
 
-        self.regressionModel = RegressionModel(64)
-        self.classificationModel = ClassificationModel(64, num_classes=80)
+        self.regressionModel = RegressionModel(256)
+        self.classificationModel = ClassificationModel(256, num_classes=80)
 
-        # prior = 0.0001
+        prior = 0.01
 
-        # self.classificationModel.output.weight.data.fill_(0)
-        # self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
+        self.classificationModel.output.weight.data.fill_(0)
+        self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
 
-        # self.regressionModel.output.weight.data.fill_(0)
-        # self.regressionModel.output.bias.data.fill_(0)
+        self.regressionModel.output.weight.data.fill_(0)
+        self.regressionModel.output.bias.data.fill_(0)
 
         self.anchors = Anchors()
         self.focalLoss = losses.FocalLoss()
@@ -693,18 +693,21 @@ class ConvolutionalVisionTransformer(nn.Module):
         #     a.set_title('CvT stage {}'.format(i), fontsize=30)
         # plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
 
-        # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
-        # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
-        # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
+        x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
+        x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
+        x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
 
-        # return x0, x1, x2
-        return [x0]
+        return x0, x1, x2
+        # return [x0]
 
     def forward(self, inputs):
         if self.training:
             img_batch, annotations = inputs
         else:
             img_batch = inputs
+
+        # print('===== IMAGE_BATCH =====')
+        # print()
 
         anchors = self.anchors(img_batch)
         # x = x[0]
@@ -731,7 +734,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         if self.training:
             return self.focalLoss(classification, regression, anchors, annotations)
         else:
-            # print('inputs : ', img_batch.shape)
             transformed_anchors = self.regressBoxes(anchors, regression)
             transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)
 
