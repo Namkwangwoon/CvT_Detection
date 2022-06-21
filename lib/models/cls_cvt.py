@@ -736,11 +736,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print('regression : ', regression.shape)
         
         features = self.fpn(x)
-        
-        print()
-        for f in features:
-            print(f.shape)
-        print()
 
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
         

@@ -135,8 +135,6 @@ def main():
     
     # Create the data loaders
     dataset_train = CocoDataset(args.coco_path, set_name='train2017',
-                                transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
-    dataset_train = CocoDataset(args.coco_path, set_name='train2017',
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
     dataset_val = CocoDataset(args.coco_path, set_name='val2017',
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
