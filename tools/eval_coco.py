@@ -18,8 +18,7 @@ def evaluate_coco(dataset, model, threshold=0.05):
         image_ids = []
         unnormalize = UnNormalizer()
 
-
-        for index in range(len(dataset)//10):
+        for index in range(len(dataset)//100):
             data = dataset[index]
             scale = 1.0
             # run network

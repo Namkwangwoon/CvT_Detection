@@ -94,6 +94,10 @@ def main():
     model = build_model(config)
     # model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_50.pth'))
     model.to(torch.device('cuda'))
+    
+    ## model의 모든 가중치 학습
+    for param in model.parameters():
+        param.requires_grad_(True)
 
     # copy model file
     summary_model_on_master(model, config, final_output_dir, True)
@@ -127,11 +131,12 @@ def main():
     # train_loader = build_dataloader(config, True, args.distributed)
     # valid_loader = build_dataloader(config, False, args.distributed)
 
+
     ### COCO dataset ###
     
     # Create the data loaders
-    # dataset_train = CocoDataset(args.coco_path, set_name='train2017',
-    #                             transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
+    dataset_train = CocoDataset(args.coco_path, set_name='train2017',
+                                transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
     dataset_train = CocoDataset(args.coco_path, set_name='train2017',
                                 transform=transforms.Compose([Normalizer(), Augmenter(), Resizer()]))
     dataset_val = CocoDataset(args.coco_path, set_name='val2017',
@@ -145,7 +150,7 @@ def main():
         # valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
         # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
         valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=None)
-
+        
     ### SOC dataset ###
     
     # config = Config()
@@ -158,6 +163,7 @@ def main():
     # valid_loader = get_loader(valid_image_root, valid_gt_root, batchsize=config.TEST.BATCH_SIZE_PER_GPU, trainsize=224)
     
     ###
+
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
@@ -209,11 +215,12 @@ def main():
             #     final_output_dir, tb_log_dir, writer_dict,
             #     args.distributed
             # )
-            try:
-                evaluate_coco(dataset_val, model)
-            except Exception as e:
-                print(e)
-                print()
+        #     try:
+        #         evaluate_coco(dataset_val, model)
+        #     except Exception as e:
+        #         print(e)
+        #         print()
+            eval_training(model, valid_loader, epoch)
         else:
             model.eval()
 

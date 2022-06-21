@@ -712,7 +712,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print()
 
         anchors = self.anchors(img_batch)
-        x = self.forward_features(img_batch)
 
         # print('x0 : ', x[0].shape)
         # regression = self.regressionModel(x[0])
@@ -726,13 +725,20 @@ class ConvolutionalVisionTransformer(nn.Module):
         # regression = self.regressionModel(x[2])
         # print('regression : ', regression.shape)
         
-        x = self.fpn(x)
+        features = self.fpn(x)
+        
+        print()
+        for f in features:
+            print(f.shape)
+        print()
 
-        regression = torch.cat([self.regressionModel(feature) for feature in x], dim=1)
-        classification = torch.cat([self.classificationModel(feature) for feature in x], dim=1)
+        regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
+        
+        classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
+        anchors = self.anchors(img_batch)
 
-        # print('regression : ', regression.shape)
-        # print('classification : ', classification.shape)
+        print("annotations :", annotations[0,0,:])
+        print()
 
         if self.training:
             return self.focalLoss(classification, regression, anchors, annotations)
@@ -778,65 +784,54 @@ class ConvolutionalVisionTransformer(nn.Module):
             # print('[finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates] : ', [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates])
             return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
 
-
 class PyramidFeatures(nn.Module):
-    def __init__(self, S1_size, S2_size, S3_size, feature_size=256):
+    def __init__(self, C3_size, C4_size, C5_size, feature_size=256):
         super(PyramidFeatures, self).__init__()
-        
+
         # upsample C5 to get P5 from the FPN paper
-        self.P3_1 = nn.Conv2d(S3_size, feature_size, kernel_size=1, stride=1, padding=0)
-        self.P3_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
-        self.P3_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.P5_1 = nn.Conv2d(C5_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P5_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        self.P5_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
         # add P5 elementwise to C4
-        self.P2_1 = nn.Conv2d(S2_size, feature_size, kernel_size=1, stride=1, padding=0)
-        self.P2_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
-        self.P2_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.P4_1 = nn.Conv2d(C4_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P4_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        self.P4_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
         # add P4 elementwise to C3
-        self.P1_1 = nn.Conv2d(S1_size, feature_size, kernel_size=1, stride=1, padding=0)
-        self.P1_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.P3_1 = nn.Conv2d(C3_size, feature_size, kernel_size=1, stride=1, padding=0)
+        self.P3_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
         # # "P6 is obtained via a 3x3 stride-2 conv on C5"
-        # self.P4 = nn.Conv2d(S3_size, feature_size, kernel_size=3, stride=2, padding=1)
+        # self.P6 = nn.Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
 
         # # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
-        # self.P5_1 = nn.ReLU()
-        # self.P5_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
-        
-        
-        # self.x1 = nn.Conv2d(S1_size, feature_size, kernel_size=1, stride=1)
-        # self.x2 = nn.Conv2d(S2_size, feature_size, kernel_size=1, stride=1)
-        # self.x3 = nn.Conv2d(S3_size, feature_size, kernel_size=1, stride=1)
+        # self.P7_1 = nn.ReLU()
+        # self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
     def forward(self, inputs):
-        S1, S2, S3 = inputs
+        C3, C4, C5 = inputs
 
-        P3_x = self.P3_1(S3)
-        P3_upsampled_x = self.P3_upsampled(P3_x)
+        P5_x = self.P5_1(C5)
+        P5_upsampled_x = self.P5_upsampled(P5_x)
+        P5_x = self.P5_2(P5_x)
+
+        P4_x = self.P4_1(C4)
+        P4_x = P5_upsampled_x + P4_x
+        P4_upsampled_x = self.P4_upsampled(P4_x)
+        P4_x = self.P4_2(P4_x)
+
+        P3_x = self.P3_1(C3)
+        P3_x = P3_x + P4_upsampled_x
         P3_x = self.P3_2(P3_x)
 
-        P2_x = self.P2_1(S2)
-        P2_x = P3_upsampled_x + P2_x
-        P2_upsampled_x = self.P2_upsampled(P2_x)
-        P2_x = self.P2_2(P2_x)
+        # P6_x = self.P6(C5)
 
-        P1_x = self.P1_1(S1)
-        P1_x = P1_x + P2_upsampled_x
-        P1_x = self.P1_2(P1_x)
+        # P7_x = self.P7_1(P6_x)
+        # P7_x = self.P7_2(P7_x)
 
-        # P4_x = self.P4(S3)
-
-        # P5_x = self.P5_1(P4_x)
-        # P5_x = self.P5_2(P5_x)
-        
-        # P1_x = self.x1(S1)
-        # P2_x = self.x2(S2)
-        # P3_x = self.x3(S3)
-
-        # # return [P1_x, P2_x, P3_x, P4_x, P5_x]
-        return [P1_x, P2_x, P3_x]
-
+        # return [P3_x, P4_x, P5_x, P6_x, P7_x]
+        return [P3_x, P4_x, P5_x]
 
 class ClassificationModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=64):
