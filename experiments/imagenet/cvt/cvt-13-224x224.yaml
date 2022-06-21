@@ -63,7 +63,7 @@ TEST:
   INTERPOLATION: 3
 TRAIN:
   BATCH_SIZE_PER_GPU: 56
-  LR: 1e-5
+  LR: 0.001
   IMAGE_SIZE: [224, 224]
   BEGIN_EPOCH: 0
   END_EPOCH: 300
@@ -76,7 +76,7 @@ TRAIN:
       min_lr: 0.001
       cooldown_epochs: 10
       decay_rate: 0.1
-  OPTIMIZER: sgd
+  OPTIMIZER: adam
   WD: 0.05
   WITHOUT_WD_LIST: ['bn', 'bias', 'ln']
   SHUFFLE: true

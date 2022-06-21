@@ -92,11 +92,11 @@ def main():
     model.eval()
 
     ### COCO dataset ###
-    # dataset_val = CocoDataset(args.coco_path, set_name='val2017',
-    #                             transform=transforms.Compose([Normalizer(), Resizer()]))
+    dataset_val = CocoDataset(args.coco_path, set_name='val2017',
+                                transform=transforms.Compose([Normalizer(), Resizer()]))
 
-    dataset_val = CocoDataset(args.coco_path, set_name='train2017',
-                                    transform=transforms.Compose([Normalizer(), Resizer()]))
+    # dataset_val = CocoDataset(args.coco_path, set_name='train2017',
+                                    # transform=transforms.Compose([Normalizer(), Resizer()]))
 
     if dataset_val is not None:
         # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=56, drop_last=False)
@@ -108,6 +108,8 @@ def main():
 
     unnormalize = UnNormalizer()
     for idx, (x, y) in enumerate(valid_loader):
+        # if idx == 0:
+            # continue
         print('============ X, Y ============')
         print(x.shape)
         print(y.shape)
