@@ -3,6 +3,10 @@ import json
 import torch
 import numpy as np
 
+import os
+import cv2
+from dataset.COCOdataloader import UnNormalizer
+
 def evaluate_coco(dataset, model, threshold=0.05):
     
     model.eval()
@@ -12,11 +16,10 @@ def evaluate_coco(dataset, model, threshold=0.05):
         # start collecting results
         results = []
         image_ids = []
+        unnormalize = UnNormalizer()
 
         for index in range(len(dataset)//100):
-
             data = dataset[index]
-            # scale = data['scale']
             scale = 1.0
             # run network
             if torch.cuda.is_available():
@@ -28,7 +31,17 @@ def evaluate_coco(dataset, model, threshold=0.05):
             boxes  = boxes.cpu()
 
             # correct boxes for image scale
-            boxes /= scale
+            # boxes /= scale
+
+            boxes[:, 0] /= h_scale
+            boxes[:, 1] /= w_scale
+            boxes[:, 2] /= h_scale
+            boxes[:, 3] /= w_scale
+
+            # boxes[:, 0] = round(boxes[:, 0], 2)
+            # boxes[:, 1] = round(boxes[:, 1], 2)
+            # boxes[:, 2] = round(boxes[:, 2], 2)
+            # boxes[:, 3] = round(boxes[:, 3], 2)
 
             if boxes.shape[0] > 0:
                 # change to (x, y, w, h) (MS COCO standard)

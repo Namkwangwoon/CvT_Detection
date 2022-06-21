@@ -17,6 +17,11 @@ import torch.backends.cudnn as cudnn
 from utils.comm import comm
 from ptflops import get_model_complexity_info
 
+import cv2
+import numpy as np
+import skimage
+from einops import rearrange
+from dataset.COCOdataloader import UnNormalizer
 
 def setup_logger(final_output_dir, rank, phase):
     time_str = time.strftime('%Y-%m-%d-%H-%M')
@@ -212,3 +217,95 @@ def strip_prefix_if_present(state_dict, prefix):
     for key, value in state_dict.items():
         stripped_state_dict[key.replace(prefix, "")] = value
     return stripped_state_dict
+
+def visualize_image(data, model, epoch, labels):
+    saved_path = 'visualize'
+    if not os.path.exists(saved_path):
+        os.mkdir(saved_path)
+
+    unnormalize = UnNormalizer()
+
+    with torch.no_grad():
+        x = data['img']
+        x = rearrange(x, 'h w c -> c h w')
+        x = x.unsqueeze(0).float()
+        x = x.cuda()
+
+        scores, classification, transformed_anchors = model(x)
+        idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
+        x = x.cpu()
+
+        new_data = unfold(data)
+        x = new_data['img']
+        img = np.array(255 * unnormalize(x[:, :, :])).copy()
+
+        # img = np.array(255 * unnormalize(x[0, :, :, :])).copy()
+        img[img<0] = 0
+        img[img>255] = 255
+        # img = np.transpose(img, (1, 2, 0))
+        
+        img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB)
+
+        if epoch == 0:
+            cv2.imwrite(saved_path + '/original.jpg', img)
+            y = new_data['annot'].numpy()
+            y = data['annot'].numpy()
+
+            for each_label in y:
+                bbox = each_label[:4]
+                x1 = int(bbox[0])
+                y1 = int(bbox[1])
+                x2 = int(bbox[2])
+                y2 = int(bbox[3])
+                label_name = labels[int(each_label[4])]
+                draw_caption(img, (x1, y1, x2, y2), label_name)
+                cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 255, 255), thickness=1)
+
+            cv2.imwrite(saved_path + '/annotation.jpg', img)
+
+
+        for j in range(idxs[0].shape[0]):
+            bbox = transformed_anchors[idxs[0][j], :]
+            x1 = int(bbox[0])
+            y1 = int(bbox[1])
+            x2 = int(bbox[2])
+            y2 = int(bbox[3])
+            label_name = labels[int(classification[idxs[0][j]])]
+            cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 255, 255), thickness=1)
+
+        cv2.imwrite(saved_path + '/result_{}.jpg'.format(epoch), img)
+
+def draw_caption(image, box, caption):
+    b = np.array(box).astype(int)
+    cv2.putText(image, caption, (b[0], b[1] - 10), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 0), 2)
+    cv2.putText(image, caption, (b[0], b[1] - 10), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
+
+
+def unfold(data):
+    x = data['img']
+    y = data['annot']
+    w_scale = data['w_scale']
+    h_scale = data['h_scale']
+
+    x = data['img']
+    x = rearrange(x, 'h w c -> c h w')
+    x = x.float()
+
+    cur_size = 224
+    w_size = int(round(cur_size * w_scale, 0))
+    h_size = int(round(cur_size * h_scale, 0))
+
+
+    image = x.numpy()
+    image = np.transpose(image, (1, 2, 0))
+    y = y.numpy()
+
+    y[:, 0] *= h_scale
+    y[:, 1] *= w_scale
+    y[:, 2] *= h_scale
+    y[:, 3] *= w_scale
+
+    # new_image = skimage.transform.resize(image, (w_size, h_size))
+    new_image = cv2.resize(image, (w_size, h_size))
+
+    return {'img': torch.from_numpy(new_image), 'annot': torch.from_numpy(y)}

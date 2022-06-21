@@ -37,6 +37,8 @@ from utils.utils import save_model_on_master
 from dataset.COCOdataloader import CocoDataset, Normalizer, Augmenter, Resizer, CSVDataset, AspectRatioBasedSampler, collater
 from torchvision import transforms
 from torch.utils.data import DataLoader
+from torch.utils.data import Sampler
+from utils.utils import visualize_image
 
 from dataset.SOCdataloader import Config, get_loader
 from eval_coco import evaluate_coco
@@ -92,12 +94,7 @@ def main():
         save_config(config, output_config_path)
 
     model = build_model(config)
-    # model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_50.pth'))
     model.to(torch.device('cuda'))
-    
-    ## model의 모든 가중치 학습
-    for param in model.parameters():
-        param.requires_grad_(True)
 
     # copy model file
     summary_model_on_master(model, config, final_output_dir, True)
@@ -117,51 +114,30 @@ def main():
     begin_epoch = config.TRAIN.BEGIN_EPOCH
     optimizer = build_optimizer(config, model)
     print(optimizer)
-    # optimizer = torch.optim.SGD(
-    #     lr=config.TRAIN.LR,
-    #     momentum=config.TRAIN.MOMENTUM,
-    #     weight_decay=config.TRAIN.WD,
-    #     nesterov=config.TRAIN.NESTEROV
-    # )
-
-    # best_perf, begin_epoch = resume_checkpoint(
-        # model, optimizer, config, final_output_dir, True
-    # )
-
-    # train_loader = build_dataloader(config, True, args.distributed)
-    # valid_loader = build_dataloader(config, False, args.distributed)
-
 
     ### COCO dataset ###
-    
-    # Create the data loaders
     dataset_train = CocoDataset(args.coco_path, set_name='train2017',
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
     dataset_val = CocoDataset(args.coco_path, set_name='val2017',
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
 
-    sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
-    train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=sampler)
+    # sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
+    # train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=sampler)
+
+
+    # dataset_train = CocoDataset(args.coco_path, set_name='train2017', transform=transforms.Compose([Normalizer(), Resizer()]))
+    # sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
+    # train_sequential_sampler = Sampler.SequentialSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=True)
+    # train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=train_sequential_sampler)
+    train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
 
     if dataset_val is not None:
         # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
         # valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
         # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
-        valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=None)
-        
-    ### SOC dataset ###
-    
-    # config = Config()
-
-    # train_image_root = 'DATASET/SOC/TrainSet/Imgs/'
-    # train_gt_root = 'DATASET/SOC/TrainSet/gt/'
-    # valid_image_root = 'DATASET/SOC/ValSet/Imgs/'
-    # valid_gt_root = 'DATASET/SOC/ValSet/gt/'
-    # train_loader = get_loader(train_image_root, train_gt_root, batchsize=config.TRAIN.BATCH_SIZE_PER_GPU, trainsize=224)
-    # valid_loader = get_loader(valid_image_root, valid_gt_root, batchsize=config.TEST.BATCH_SIZE_PER_GPU, trainsize=224)
-    
-    ###
-
+        # val_sequential_sampler = Sampler.SequentialSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=True)
+        # valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=val_sequential_sampler)
+        valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_size=config.TEST.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
@@ -170,21 +146,13 @@ def main():
             find_unused_parameters=True
         )
 
-    # criterion = build_criterion(config)
-    # criterion.cuda()
     criterion = FocalLoss()
 
-    # criterion_eval = build_criterion(config, train=False)
-    # criterion_eval.cuda()
-
-    # lr_scheduler = build_lr_scheduler(config, optimizer, begin_epoch)
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[40, 120], gamma=0.1)
-
     scaler = torch.cuda.amp.GradScaler(enabled=config.AMP.ENABLED)
 
     logging.info('=> start training')
     for epoch in range(begin_epoch, config.TRAIN.END_EPOCH):
-        
         head = 'Epoch[{}]:'.format(epoch)
         logging.info('=> {} epoch start'.format(head))
 
@@ -194,10 +162,10 @@ def main():
 
         # train for one epoch
         logging.info('=> {} train start'.format(head))
-        with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
-            train_one_epoch(config, train_loader, model, criterion, optimizer,
-                            epoch, final_output_dir, tb_log_dir, writer_dict,
-                            scaler=scaler)
+        # with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
+        #     train_one_epoch(config, train_loader, model, criterion, optimizer,
+        #                     epoch, final_output_dir, tb_log_dir, writer_dict,
+        #                     scaler=scaler)
         logging.info(
             '=> {} train end, duration: {:.2f}s'
             .format(head, time.time()-start)
@@ -207,20 +175,16 @@ def main():
         logging.info('=> {} validate start'.format(head))
         val_start = time.time()
 
-        if epoch >= 0:
-            # perf = test(
-            #     config, valid_loader, model, criterion_eval,
-            #     final_output_dir, tb_log_dir, writer_dict,
-            #     args.distributed
-            # )
-        #     try:
-        #         evaluate_coco(dataset_val, model)
-        #     except Exception as e:
-        #         print(e)
-        #         print()
-            eval_training(model, valid_loader, epoch)
-        else:
-            model.eval()
+        model.eval()
+
+        if epoch >= config.TRAIN.EVAL_BEGIN_EPOCH:
+            # print(dataset_val.labels)
+            try:
+                visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
+                evaluate_coco(dataset_val, model)
+            except Exception as e:
+                print(e)
+                print()
 
         perf=0
         best_model = (perf > best_perf)
@@ -233,8 +197,7 @@ def main():
             fname_full
         )
 
-        # lr_scheduler.step(epoch=epoch+1)
-        lr_scheduler.step()
+        lr_scheduler.step(epoch=epoch+1)
         lr = lr_scheduler.get_last_lr()[0]
         logging.info(f'=> lr: {lr}')
 
