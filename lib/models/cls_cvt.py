@@ -732,9 +732,6 @@ class ConvolutionalVisionTransformer(nn.Module):
         classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
         anchors = self.anchors(img_batch)
 
-        print("annotations :", annotations[0,0,:])
-        print()
-
         if self.training:
             return self.focalLoss(classification, regression, anchors, annotations)
         else:
