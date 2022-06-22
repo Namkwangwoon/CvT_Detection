@@ -18,7 +18,7 @@ import _init_paths
 from config import config
 from config import update_config
 from config import save_config
-from core.loss import build_criterion
+# from core.loss import build_criterion
 from core.function import train_one_epoch
 from dataset import build_dataloader
 from models import build_model
@@ -38,11 +38,15 @@ from dataset.COCOdataloader import CocoDataset, Normalizer, Augmenter, Resizer, 
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.utils.data import Sampler
-from utils.utils import visualize_image
+# from utils.utils import visualize_image
+from utils.detect import detect
 
 from dataset.SOCdataloader import Config, get_loader
 from eval_coco import evaluate_coco
-from core.losses import FocalLoss
+# from core.losses import FocalLoss
+from core.centernet.loss import Loss
+from dataset.coco import COCODataset
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -94,6 +98,7 @@ def main():
         save_config(config, output_config_path)
 
     model = build_model(config)
+    model.load_state_dict(torch.load('OUTPUT/centerHead/cvt_transformer_17.pth'))
     model.to(torch.device('cuda'))
 
     # copy model file
@@ -116,28 +121,20 @@ def main():
     print(optimizer)
 
     ### COCO dataset ###
-    dataset_train = CocoDataset(args.coco_path, set_name='train2017',
-                                transform=transforms.Compose([Normalizer(), Resizer()]))
+    # dataset_train = CocoDataset(args.coco_path, set_name='train2017',
+    #                             transform=transforms.Compose([Normalizer(), Resizer()]))
     dataset_val = CocoDataset(args.coco_path, set_name='val2017',
                                 transform=transforms.Compose([Normalizer(), Resizer()]))
 
-    # sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
-    # train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=sampler)
 
 
-    # dataset_train = CocoDataset(args.coco_path, set_name='train2017', transform=transforms.Compose([Normalizer(), Resizer()]))
-    # sampler = AspectRatioBasedSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=False)
-    # train_sequential_sampler = Sampler.SequentialSampler(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, drop_last=True)
-    # train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_sampler=train_sequential_sampler)
-    train_loader = DataLoader(dataset_train, num_workers=16, collate_fn=collater, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
+    # train_loader = DataLoader(dataset_train, num_workers=0, collate_fn=collater, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
+    # train_loader = DataLoader(dataset_train, num_workers=0, collate_fn=collater, batch_size=32, shuffle=False, drop_last=True)
 
-    if dataset_val is not None:
-        # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=False)
-        # valid_loader = DataLoader(dataset_val, num_workers=16, collate_fn=collater, batch_sampler=sampler_val)
-        # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
-        # val_sequential_sampler = Sampler.SequentialSampler(dataset_val, batch_size=config.TEST.BATCH_SIZE_PER_GPU, drop_last=True)
-        # valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=val_sequential_sampler)
-        valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_size=config.TEST.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
+    dataset_train = COCODataset()
+    # train_loader = DataLoader(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, shuffle=True, num_workers=0, collate_fn=dataset_train.collate_fn)
+    train_loader = DataLoader(dataset_train, batch_size=64, shuffle=True, num_workers=4, collate_fn=dataset_train.collate_fn)
+    # train_loader = DataLoader(dataset_train, batch_size=1, shuffle=True, num_workers=0, collate_fn=None)
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
@@ -146,9 +143,9 @@ def main():
             find_unused_parameters=True
         )
 
-    criterion = FocalLoss()
+    loss_func = Loss()
 
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[40, 120], gamma=0.1)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[24, 60], gamma=0.1)
     scaler = torch.cuda.amp.GradScaler(enabled=config.AMP.ENABLED)
 
     logging.info('=> start training')
@@ -160,10 +157,9 @@ def main():
         if args.distributed:
             train_loader.sampler.set_epoch(epoch)
 
-        # train for one epoch
         logging.info('=> {} train start'.format(head))
         # with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
-        #     train_one_epoch(config, train_loader, model, criterion, optimizer,
+        #     train_one_epoch(config, train_loader, model, loss_func, optimizer,
         #                     epoch, final_output_dir, tb_log_dir, writer_dict,
         #                     scaler=scaler)
         logging.info(
@@ -176,12 +172,14 @@ def main():
         val_start = time.time()
 
         model.eval()
+        # visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
 
         if epoch >= config.TRAIN.EVAL_BEGIN_EPOCH:
-            # print(dataset_val.labels)
             try:
-                visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
-                evaluate_coco(dataset_val, model)
+                # visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
+                # model.inference(dataset_val[0], )
+                detect(model, epoch, dataset_val.labels)
+                # evaluate_coco(dataset_val, model)
             except Exception as e:
                 print(e)
                 print()

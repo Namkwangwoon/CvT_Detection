@@ -25,6 +25,7 @@ from torchvision.ops import nms
 from .registry import register_model
 
 from torchvision.ops import focal_loss
+from models.decoder import Decoder
 
 
 # From PyTorch internals
@@ -544,29 +545,12 @@ class ConvolutionalVisionTransformer(nn.Module):
         dim_embed = spec['DIM_EMBED'][-1]
         self.norm = norm_layer(dim_embed)
         self.cls_token = spec['CLS_TOKEN'][-1]
-
-        # Classifier head
-        self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
-        # trunc_normal_(self.head.weight, std=0.02)
         
-        self.fpn = PyramidFeatures(64, 192, 384)
+        self.conv1 = nn.Conv2d(384, 768, kernel_size=3, stride=2, padding=1)
+        # self.fpn = PyramidFeatures(64, 192, 384)
 
-        self.regressionModel = RegressionModel(256)
-        self.classificationModel = ClassificationModel(256, num_classes=80)
-
-        prior = 0.01
-
-        self.classificationModel.output.weight.data.fill_(0)
-        self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
-
-        self.regressionModel.output.weight.data.fill_(0)
-        self.regressionModel.output.bias.data.fill_(0)
-
-        self.anchors = Anchors()
-        self.focalLoss = losses.FocalLoss()
-
-        self.regressBoxes = BBoxTransform()
-        self.clipBoxes = ClipBoxes()
+        self.upsample = Decoder(768, 0.1)
+        self.head = Head(channel=64, num_classes=80)
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
@@ -620,8 +604,8 @@ class ConvolutionalVisionTransformer(nn.Module):
 
                     need_init_state_dict[k] = v
             
-            del need_init_state_dict['head.weight']
-            del need_init_state_dict['head.bias']
+            # del need_init_state_dict['head.weight']
+            # del need_init_state_dict['head.bias']
             
             self.load_state_dict(need_init_state_dict, strict=False)
 
@@ -635,149 +619,99 @@ class ConvolutionalVisionTransformer(nn.Module):
         return layers
 
     def forward_features(self, x):
-
         x0, cls_tokens0 = getattr(self, f'stage0')(x)
-        # print(f'stage 0 : ', x0.shape)
-
         x1, cls_tokens1 = getattr(self, f'stage1')(x0)
-        # print(f'stage 1 : ', x1.shape)
-
         x2, cls_tokens2 = getattr(self, f'stage2')(x1)
-        # print(f'stage 2 : ', x2.shape)
-
-        '''
-        For Second Training
-        '''
-
-        # upsample_x1 = F.interpolate(x1, 56)
-        # upsample_x2 = F.interpolate(x2, 56)
-
-        # print('x0 : ', x0.shape)
-        # print('upsample x1 : ', upsample_x1.shape)
-        # print('upsample x2 : ', upsample_x2.shape)
-
-        # concatenate_features = torch.cat([x0, upsample_x1, upsample_x2], dim=1)
-        # print('concatenate feature maps : ', concatenate_features.shape)
-
-        # x = x2
-        # cls_tokens = cls_tokens2
-
-        # if self.cls_token:
-        #     x = self.norm(cls_tokens)
-        #     x = torch.squeeze(x)
-        # else:
-        #     x = rearrange(x, 'b c h w -> b (h w) c')
-        #     x = self.norm(x)
-        #     x = torch.mean(x, dim=1)
-
-#         print('OUTPUT : ', x.shape)
-#         print(x0.shape)
-#         print(x1.shape)
-#         print(x2.shape)
-#         print()
-
-#         processed = []
-#         for feature_map in [x0, x1, x2]:
-#             feature_map = feature_map.squeeze(0)
-#             gray_scale = torch.sum(feature_map, 0)
-#             gray_scale = gray_scale / feature_map.shape[0]
-#             processed.append(gray_scale.data.cpu().numpy())
-
-#         print('Feature Map : ', x.shape)
-#         for feature_map in processed:
-#             print(feature_map.shape)
-#         print()
-
-#         fig = plt.figure(figsize=(30, 50))
-#         for i in range(len(processed)):
-#             a = fig.add_subplot(5, 4, i+1)
-#             imgplot = plt.imshow(processed[i])
-#             a.axis("off")
-#             a.set_title('{}'.format(i), fontsize=30)
-#         plt.savefig(str('feature_maps.jpg'), bbox_inches='tight')
-
-        # x0 = nn.Conv2d(x0.shape[1], 256, kernel_size=1, stride=1).cuda()(x0)
-        # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
-        # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
         
-        return [x0, x1, x2]
+        return x2
+        # return x2
+
+    def pool_nms(self, hm, pool_size=3):
+        pad = (pool_size - 1) // 2
+        hm_max = F.max_pool2d(hm, pool_size, stride=1, padding=pad)
+        keep = (hm_max == hm).float()
+        return hm * keep
+
+    def topk_score(self, scores, K):
+        batch, channel, height, width = scores.shape
+
+        # get topk score and its index in every H x W(channel dim) feature map
+        topk_scores, topk_inds = torch.topk(scores.reshape(batch, channel, -1), K)
+
+        topk_inds = topk_inds % (height * width)
+        topk_ys = (topk_inds / width).int().float()
+        topk_xs = (topk_inds % width).int().float()
+
+        # get all topk in in a batch
+        topk_score, index = torch.topk(topk_scores.reshape(batch, -1), K)
+        # div by K because index is grouped by K(C x K shape)
+        topk_clses = (index / K).int()
+        topk_inds = gather_feature(topk_inds.view(batch, -1, 1), index).reshape(batch, K)
+        topk_ys = gather_feature(topk_ys.reshape(batch, -1, 1), index).reshape(batch, K)
+        topk_xs = gather_feature(topk_xs.reshape(batch, -1, 1), index).reshape(batch, K)
+
+        return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
 
     def forward(self, inputs):
-        if self.training:
-            img_batch, annotations = inputs
-        else:
-            img_batch = inputs
-
-        # print('===== IMAGE_BATCH =====')
-        # print()
+        # if self.training:
+            # img_batch, annotations = inputs
+        # else:
+            # img_batch = inputs
+        img_batch = inputs
 
         x = self.forward_features(img_batch)
-
-        # print('x0 : ', x[0].shape)
-        # regression = self.regressionModel(x[0])
-        # print('regression : ', regression.shape)
-
-        # print('x1 : ', x[1].shape)
-        # regression = self.regressionModel(x[1])
-        # print('regression : ', regression.shape)
-
-        # print('x2 : ', x[2].shape)
-        # regression = self.regressionModel(x[2])
-        # print('regression : ', regression.shape)
+        x = self.conv1(x)
+        # x = self.fpn(x)
+        # print(x.shape)
         
-        features = self.fpn(x)
+        x = self.upsample(x)
+        x = self.head(x)
 
-        regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
-        
-        classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
-        anchors = self.anchors(img_batch)
+        return x
 
-        print("annotations :", annotations[0,0,:])
-        print()
+    @torch.no_grad()
+    def inference(self, img, topK=40, return_hm=False, th=None, CLASSES_NAME=[]):
+        x = self.forward_features(img)
+        x = self.conv1(x)
+        x = self.upsample(x)
+        x = self.head(x)
 
-        if self.training:
-            return self.focalLoss(classification, regression, anchors, annotations)
-        else:
-            transformed_anchors = self.regressBoxes(anchors, regression)
-            transformed_anchors = self.clipBoxes(transformed_anchors, img_batch)
+        pred_hm, pred_wh, pred_offset = x
+        _, _, h, w = img.shape
+        b, c, output_h, output_w = pred_hm.shape
+        pred_hm = self.pool_nms(pred_hm)
+        scores, index, clses, ys, xs = self.topk_score(pred_hm, K=topK)
 
-            finalResult = [[], [], []]
+        reg = gather_feature(pred_offset, index, use_transform=True)
+        reg = reg.reshape(b, topK, 2)
+        xs = xs.view(b, topK, 1) + reg[:, :, 0:1]
+        ys = ys.view(b, topK, 1) + reg[:, :, 1:2]
 
-            finalScores = torch.Tensor([])
-            finalAnchorBoxesIndexes = torch.Tensor([]).long()
-            finalAnchorBoxesCoordinates = torch.Tensor([])
+        wh = gather_feature(pred_wh, index, use_transform=True)
+        wh = wh.reshape(b, topK, 2)
 
-            if torch.cuda.is_available():
-                finalScores = finalScores.cuda()
-                finalAnchorBoxesIndexes = finalAnchorBoxesIndexes.cuda()
-                finalAnchorBoxesCoordinates = finalAnchorBoxesCoordinates.cuda()
+        clses = clses.reshape(b, topK, 1).float()
+        scores = scores.reshape(b, topK, 1)
 
-            for i in range(classification.shape[2]):
-                scores = torch.squeeze(classification[:, :, i])
-                scores_over_thresh = (scores > 0.05)
-                if scores_over_thresh.sum() == 0:
-                    # no boxes to NMS, just continue
-                    continue
+        half_w, half_h = wh[..., 0:1] / 2, wh[..., 1:2] / 2
+        bboxes = torch.cat([xs - half_w, ys - half_h, xs + half_w, ys + half_h], dim=2)
 
-                scores = scores[scores_over_thresh]
-                anchorBoxes = torch.squeeze(transformed_anchors)
-                anchorBoxes = anchorBoxes[scores_over_thresh]
-                anchors_nms_idx = nms(anchorBoxes, scores, 0.5)
+        detects = []
+        for batch in range(b):
+            mask = scores[batch].gt(self.score_th if th is None else th)
 
-                finalResult[0].extend(scores[anchors_nms_idx])
-                finalResult[1].extend(torch.tensor([i] * anchors_nms_idx.shape[0]))
-                finalResult[2].extend(anchorBoxes[anchors_nms_idx])
+            batch_boxes = bboxes[batch][mask.squeeze(-1), :]
+            batch_boxes[:, [0, 2]] *= w / output_w
+            batch_boxes[:, [1, 3]] *= h / output_h
 
-                finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
-                finalAnchorBoxesIndexesValue = torch.tensor([i] * anchors_nms_idx.shape[0])
-                if torch.cuda.is_available():
-                    finalAnchorBoxesIndexesValue = finalAnchorBoxesIndexesValue.cuda()
+            batch_scores = scores[batch][mask]
 
-                finalAnchorBoxesIndexes = torch.cat((finalAnchorBoxesIndexes, finalAnchorBoxesIndexesValue))
-                finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates, anchorBoxes[anchors_nms_idx]))
+            batch_clses = clses[batch][mask]
+            batch_clses = [CLASSES_NAME[int(cls.item())] for cls in batch_clses]
 
-            # print('[finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates] : ', [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates])
-            return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
+            detects.append([batch_boxes, batch_scores, batch_clses, pred_hm[batch] if return_hm else None])
+        return detects
+
 
 class PyramidFeatures(nn.Module):
     def __init__(self, C3_size, C4_size, C5_size, feature_size=256):
@@ -828,91 +762,31 @@ class PyramidFeatures(nn.Module):
         # return [P3_x, P4_x, P5_x, P6_x, P7_x]
         return [P3_x, P4_x, P5_x]
 
-class ClassificationModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=64):
-        super(ClassificationModel, self).__init__()
+class Head(nn.Module):
+    def __init__(self, num_classes=80, channel=64):
+        super(Head, self).__init__()
 
-        self.num_classes = num_classes
-        self.num_anchors = num_anchors
+        self.cls_head = nn.Sequential(
+            nn.Conv2d(256, channel, kernel_size=3, padding=1, bias=True),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channel, num_classes, kernel_size=1, stride=1, padding=0)
+        )
+        self.wh_head = self.ConvReluConv(256, 2)
+        self.reg_head = self.ConvReluConv(256, 2)
 
-        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
-        self.act1 = nn.ReLU()
-
-        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.act2 = nn.ReLU()
-
-        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.act3 = nn.ReLU()
-
-        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.act4 = nn.ReLU()
-
-        self.output = nn.Conv2d(feature_size, num_anchors * num_classes, kernel_size=3, padding=1)
-        self.output_act = nn.Sigmoid()
+    def ConvReluConv(self, in_channel, out_channel, bias_fill=True, bias_value=0):
+        feat_conv = nn.Conv2d(in_channel, in_channel, kernel_size=3, padding=1)
+        relu = nn.ReLU()
+        out_conv = nn.Conv2d(in_channel, out_channel, kernel_size=1)
+        if bias_fill:
+            out_conv.bias.data.fill_(bias_value)
+        return nn.Sequential(feat_conv, relu, out_conv)
 
     def forward(self, x):
-        out = self.conv1(x)
-        out = self.act1(out)
-
-        out = self.conv2(out)
-        out = self.act2(out)
-
-        out = self.conv3(out)
-        out = self.act3(out)
-
-        out = self.conv4(out)
-        out = self.act4(out)
-
-        out = self.output(out)
-        out = self.output_act(out)
-
-        # out is B x C x W x H, with C = n_classes + n_anchors
-        out1 = out.permute(0, 2, 3, 1)
-
-        batch_size, width, height, channels = out1.shape
-
-        out2 = out1.view(batch_size, width, height, self.num_anchors, self.num_classes)
-
-        return out2.contiguous().view(x.shape[0], -1, self.num_classes)
-
-
-class RegressionModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, feature_size=256):
-        super().__init__()
-
-        self.conv1 = nn.Conv2d(num_features_in, feature_size, kernel_size=3, padding=1)
-        self.act1 = nn.ReLU()
-
-        self.conv2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.act2 = nn.ReLU()
-
-        self.conv3 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.act3 = nn.ReLU()
-
-        self.conv4 = nn.Conv2d(feature_size, feature_size, kernel_size=3, padding=1)
-        self.act4 = nn.ReLU()
-
-        self.output = nn.Conv2d(feature_size, num_anchors * 4, kernel_size=3, padding=1)
-
-    def forward(self, x):
-        out = self.conv1(x)
-        out = self.act1(out)
-
-        out = self.conv2(out)
-        out = self.act2(out)
-
-        out = self.conv3(out)
-        out = self.act3(out)
-
-        out = self.conv4(out)
-        out = self.act4(out)
-
-        out = self.output(out)
-
-        # out is B x C x W x H, with C = 4*num_anchors
-        out = out.permute(0, 2, 3, 1)
-
-        return out.contiguous().view(out.shape[0], -1, 4)
+        hm = self.cls_head(x).sigmoid()
+        wh = self.wh_head(x).relu()
+        offset = self.reg_head(x)
+        return hm, wh, offset
 
 
 @register_model
@@ -944,3 +818,19 @@ def get_cls_model(config, **kwargs):
 
 
     return msvit
+
+def gather_feature(fmap, index, mask=None, use_transform=False):
+    if use_transform:
+        # change a (N, C, H, W) tenor to (N, HxW, C) shape
+        batch, channel = fmap.shape[:2]
+        fmap = fmap.view(batch, channel, -1).permute((0, 2, 1)).contiguous()
+
+    dim = fmap.size(-1)
+    index = index.unsqueeze(len(index.shape)).expand(*index.shape, dim)
+    fmap = fmap.gather(dim=1, index=index)
+    if mask is not None:
+        # this part is not called in Res18 dcn COCO
+        mask = mask.unsqueeze(2).expand_as(fmap)
+        fmap = fmap[mask]
+        fmap = fmap.reshape(-1, dim)
+    return fmap

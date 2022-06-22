@@ -435,8 +435,11 @@ class Augmenter(object):
 class Normalizer(object):
 
     def __init__(self):
-        self.mean = np.array([[[0.485, 0.456, 0.406]]])
-        self.std = np.array([[[0.229, 0.224, 0.225]]])
+        # self.mean = np.array([[[0.485, 0.456, 0.406]]])
+        # self.std = np.array([[[0.229, 0.224, 0.225]]])
+
+        self.mean = np.array([[[0.40789654, 0.44719302, 0.47026115]]])
+        self.std = np.array([[[0.28863828, 0.27408164, 0.27809835]]])
 
     def __call__(self, sample):
 
@@ -447,11 +450,13 @@ class Normalizer(object):
 class UnNormalizer(object):
     def __init__(self, mean=None, std=None):
         if mean == None:
-            self.mean = [0.485, 0.456, 0.406]
+            # self.mean = [0.485, 0.456, 0.406]
+            self.mean = [0.40789654, 0.44719302, 0.47026115]
         else:
             self.mean = mean
         if std == None:
-            self.std = [0.229, 0.224, 0.225]
+            # self.std = [0.229, 0.224, 0.225]
+            self.std = [0.28863828, 0.27408164, 0.27809835]
         else:
             self.std = std
 
