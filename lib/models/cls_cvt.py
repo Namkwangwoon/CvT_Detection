@@ -730,6 +730,7 @@ class ConvolutionalVisionTransformer(nn.Module):
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
         
         classification = torch.cat([self.classificationModel(feature) for feature in features], dim=1)
+        
         anchors = self.anchors(img_batch)
 
         if self.training:
