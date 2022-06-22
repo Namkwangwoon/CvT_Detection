@@ -500,7 +500,7 @@ class VisionTransformer(nn.Module):
 class ConvolutionalVisionTransformer(nn.Module):
     def __init__(self,
                  in_chans=3,
-                 num_classes=80,
+                 num_classes=20,
                  act_layer=nn.GELU,
                  norm_layer=nn.LayerNorm,
                  init='trunc_norm',
@@ -549,8 +549,12 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.conv1 = nn.Conv2d(384, 768, kernel_size=3, stride=2, padding=1)
         # self.fpn = PyramidFeatures(64, 192, 384)
 
-        self.upsample = Decoder(768, 0.1)
-        self.head = Head(channel=64, num_classes=80)
+        self.upsample = Decoder(640, 0.1)
+        self.head = Head(channel=64, num_classes=20)
+
+        self.avg1 = nn.AvgPool2d(2, 2)
+        self.avg2 = nn.AvgPool2d(2, 2)
+        self.avg3 = nn.AvgPool2d(2, 2)
 
 
     def init_weights(self, pretrained='', pretrained_layers=[], verbose=True):
@@ -623,7 +627,7 @@ class ConvolutionalVisionTransformer(nn.Module):
         x1, cls_tokens1 = getattr(self, f'stage1')(x0)
         x2, cls_tokens2 = getattr(self, f'stage2')(x1)
         
-        return x2
+        return x0, x1, x2
         # return x2
 
     def pool_nms(self, hm, pool_size=3):
@@ -659,10 +663,17 @@ class ConvolutionalVisionTransformer(nn.Module):
             # img_batch = inputs
         img_batch = inputs
 
-        x = self.forward_features(img_batch)
-        x = self.conv1(x)
+        # x = self.forward_features(img_batch)
+        x0, x1, x2 = self.forward_features(img_batch)
+
+        x0 = self.avg1(x0)
+        x1 = torch.cat([x0, x1], dim=1)
+        x1 = self.avg2(x1)
+        x2 = torch.cat([x1, x2], dim=1)
+        x = self.avg3(x2)
+
+        # x = self.conv1(x)
         # x = self.fpn(x)
-        # print(x.shape)
         
         x = self.upsample(x)
         x = self.head(x)
@@ -763,7 +774,7 @@ class PyramidFeatures(nn.Module):
         return [P3_x, P4_x, P5_x]
 
 class Head(nn.Module):
-    def __init__(self, num_classes=80, channel=64):
+    def __init__(self, num_classes=20, channel=64):
         super(Head, self).__init__()
 
         self.cls_head = nn.Sequential(

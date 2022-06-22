@@ -46,6 +46,7 @@ from eval_coco import evaluate_coco
 # from core.losses import FocalLoss
 from core.centernet.loss import Loss
 from dataset.coco import COCODataset
+from dataset.voc import VOCDataset
 
 
 def parse_args():
@@ -98,7 +99,7 @@ def main():
         save_config(config, output_config_path)
 
     model = build_model(config)
-    model.load_state_dict(torch.load('OUTPUT/centerHead/cvt_transformer_17.pth'))
+    # model.load_state_dict(torch.load('OUTPUT/centerHead/cvt_transformer_17.pth'))
     model.to(torch.device('cuda'))
 
     # copy model file
@@ -123,17 +124,18 @@ def main():
     ### COCO dataset ###
     # dataset_train = CocoDataset(args.coco_path, set_name='train2017',
     #                             transform=transforms.Compose([Normalizer(), Resizer()]))
-    dataset_val = CocoDataset(args.coco_path, set_name='val2017',
-                                transform=transforms.Compose([Normalizer(), Resizer()]))
-
-
+    # dataset_val = CocoDataset(args.coco_path, set_name='val2017',
+                                # transform=transforms.Compose([Normalizer(), Resizer()]))
+    
+    dataset_val = VOCDataset(mode='val')
 
     # train_loader = DataLoader(dataset_train, num_workers=0, collate_fn=collater, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, shuffle=False, drop_last=True)
     # train_loader = DataLoader(dataset_train, num_workers=0, collate_fn=collater, batch_size=32, shuffle=False, drop_last=True)
 
-    dataset_train = COCODataset()
+    # dataset_train = COCODataset()
+    dataset_train = VOCDataset()
     # train_loader = DataLoader(dataset_train, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, shuffle=True, num_workers=0, collate_fn=dataset_train.collate_fn)
-    train_loader = DataLoader(dataset_train, batch_size=64, shuffle=True, num_workers=4, collate_fn=dataset_train.collate_fn)
+    train_loader = DataLoader(dataset_train, batch_size=64, shuffle=True, num_workers=0, collate_fn=dataset_train.collate_fn)
     # train_loader = DataLoader(dataset_train, batch_size=1, shuffle=True, num_workers=0, collate_fn=None)
 
     if args.distributed:
@@ -148,6 +150,12 @@ def main():
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[24, 60], gamma=0.1)
     scaler = torch.cuda.amp.GradScaler(enabled=config.AMP.ENABLED)
 
+    CLASSES_NAME = (
+        '__back_ground__', 'aeroplane', 'bicycle', 'bird', 'boat',
+        'bottle', 'bus', 'car', 'cat', 'chair', 'cow',
+        'diningtable', 'dog', 'horse', 'motorbike',
+        'person', 'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor')
+
     logging.info('=> start training')
     for epoch in range(begin_epoch, config.TRAIN.END_EPOCH):
         head = 'Epoch[{}]:'.format(epoch)
@@ -158,10 +166,10 @@ def main():
             train_loader.sampler.set_epoch(epoch)
 
         logging.info('=> {} train start'.format(head))
-        # with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
-        #     train_one_epoch(config, train_loader, model, loss_func, optimizer,
-        #                     epoch, final_output_dir, tb_log_dir, writer_dict,
-        #                     scaler=scaler)
+        with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
+            train_one_epoch(config, train_loader, model, loss_func, optimizer,
+                            epoch, final_output_dir, tb_log_dir, writer_dict,
+                            scaler=scaler)
         logging.info(
             '=> {} train end, duration: {:.2f}s'
             .format(head, time.time()-start)
@@ -178,7 +186,7 @@ def main():
             try:
                 # visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
                 # model.inference(dataset_val[0], )
-                detect(model, epoch, dataset_val.labels)
+                detect(model, epoch, CLASSES_NAME)
                 # evaluate_coco(dataset_val, model)
             except Exception as e:
                 print(e)
