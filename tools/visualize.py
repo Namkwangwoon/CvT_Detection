@@ -119,12 +119,24 @@ def main():
             
                 scores, classification, transformed_anchors = model(x)
             
+            print('============ TRANSFORMED_ANCHORS ============')
+            print(transformed_anchors.shape)
+            print(transformed_anchors)
+            print()
+            
+            # idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
+            idxs = np.where(scores.cpu()>0)
+            print('============ TRANSFORMED_ANCHORS ============')
+            print(idxs)
+            print('num final bbox : ', len(idxs[0]))
+            print()
+            
             print('Elapsed time: {}'.format(time.time()-st))
             print('============ SCORE ============')
             print(scores.shape)
             print(scores)
             # print(torch.max(scores))  
-            print(torch.mean(scores))
+            print("mean score :", torch.mean(scores))
             print()
 
             print('============ CLASSIFICATION ============')
@@ -132,15 +144,8 @@ def main():
             print(classification)
             print()
 
-            print('============ TRANSFORMED_ANCHORS ============')
-            print(transformed_anchors.shape)
-            print(transformed_anchors)
-            print()
-            
-            idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
-            print('============ TRANSFORMED_ANCHORS ============')
-            print(idxs)
-            print('num final bbox : ', len(idxs[0]))
+            print('========== GT ==========')
+            print(y)
             print()
 
             x = x.cpu()
