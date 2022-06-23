@@ -137,8 +137,8 @@ def main():
 
     ### VOC dataset ###
     
-    ds = VOCDataset('DATASET/VOCdevkit/VOC2012', resize_size=(224, 224))
-    train_loader = DataLoader(ds, batch_size=56, collate_fn=ds.collate_fn)
+    ds = VOCDataset('DATASET/VOCdevkit/VOC2012', resize_size=config.TRAIN.IMAGE_SIZE)
+    train_loader = DataLoader(ds, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, collate_fn=ds.collate_fn)
 
     ### COCO dataset ###
     

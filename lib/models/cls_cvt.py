@@ -505,6 +505,7 @@ class ConvolutionalVisionTransformer(nn.Module):
                  init='trunc_norm',
                  spec=None):
         super().__init__()
+        num_classes = 21
         self.num_classes = num_classes
 
         self.num_stages = spec['NUM_STAGES']
@@ -549,10 +550,11 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.head = nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
         # trunc_normal_(self.head.weight, std=0.02)
         
-        self.fpn = PyramidFeatures(64, 192, 384)
+        # self.fpn = PyramidFeatures(64, 192, 384)
+        self.fpn = PyramidFeatures(64)
 
         self.regressionModel = RegressionModel(256)
-        self.classificationModel = ClassificationModel(256, num_classes=80)
+        self.classificationModel = ClassificationModel(256, num_classes=self.num_classes)
 
         prior = 0.01
 
@@ -700,7 +702,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
         # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
         
-        return [x0, x1, x2]
+        # return [x0, x1, x2]
+        return x0
 
     def forward(self, inputs):
         if self.training:
@@ -713,7 +716,7 @@ class ConvolutionalVisionTransformer(nn.Module):
 
         x = self.forward_features(img_batch)
 
-        # print('x0 : ', x[0].shape)
+        # print('x0 : ', x.shape)
         # regression = self.regressionModel(x[0])
         # print('regression : ', regression.shape)
 
@@ -778,18 +781,19 @@ class ConvolutionalVisionTransformer(nn.Module):
             return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
 
 class PyramidFeatures(nn.Module):
-    def __init__(self, C3_size, C4_size, C5_size, feature_size=256):
+    # def __init__(self, C3_size, C4_size, C5_size, feature_size=256):
+    def __init__(self, C3_size, feature_size=256):
         super(PyramidFeatures, self).__init__()
 
         # upsample C5 to get P5 from the FPN paper
-        self.P5_1 = nn.Conv2d(C5_size, feature_size, kernel_size=1, stride=1, padding=0)
-        self.P5_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
-        self.P5_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.P5_1 = nn.Conv2d(C5_size, feature_size, kernel_size=1, stride=1, padding=0)
+        # self.P5_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        # self.P5_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
         # add P5 elementwise to C4
-        self.P4_1 = nn.Conv2d(C4_size, feature_size, kernel_size=1, stride=1, padding=0)
-        self.P4_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
-        self.P4_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.P4_1 = nn.Conv2d(C4_size, feature_size, kernel_size=1, stride=1, padding=0)
+        # self.P4_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        # self.P4_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
         # add P4 elementwise to C3
         self.P3_1 = nn.Conv2d(C3_size, feature_size, kernel_size=1, stride=1, padding=0)
@@ -803,19 +807,20 @@ class PyramidFeatures(nn.Module):
         # self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
     def forward(self, inputs):
-        C3, C4, C5 = inputs
+        # C3, C4, C5 = inputs
+        C3 = inputs
 
-        P5_x = self.P5_1(C5)
-        P5_upsampled_x = self.P5_upsampled(P5_x)
-        P5_x = self.P5_2(P5_x)
+        # P5_x = self.P5_1(C5)
+        # P5_upsampled_x = self.P5_upsampled(P5_x)
+        # P5_x = self.P5_2(P5_x)
 
-        P4_x = self.P4_1(C4)
-        P4_x = P5_upsampled_x + P4_x
-        P4_upsampled_x = self.P4_upsampled(P4_x)
-        P4_x = self.P4_2(P4_x)
+        # P4_x = self.P4_1(C4)
+        # P4_x = P5_upsampled_x + P4_x
+        # P4_upsampled_x = self.P4_upsampled(P4_x)
+        # P4_x = self.P4_2(P4_x)
 
         P3_x = self.P3_1(C3)
-        P3_x = P3_x + P4_upsampled_x
+        # P3_x = P3_x + P4_upsampled_x
         P3_x = self.P3_2(P3_x)
 
         # P6_x = self.P6(C5)
@@ -824,10 +829,11 @@ class PyramidFeatures(nn.Module):
         # P7_x = self.P7_2(P7_x)
 
         # return [P3_x, P4_x, P5_x, P6_x, P7_x]
-        return [P3_x, P4_x, P5_x]
+        # return [P3_x, P4_x, P5_x]
+        return [P3_x]
 
 class ClassificationModel(nn.Module):
-    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=64):
+    def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):
         super(ClassificationModel, self).__init__()
 
         self.num_classes = num_classes
