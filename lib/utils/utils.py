@@ -235,20 +235,19 @@ def visualize_image(data, model, epoch, labels):
         idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
         x = x.cpu()
 
-        new_data = unfold(data)
-        x = new_data['img']
-        img = np.array(255 * unnormalize(x[:, :, :])).copy()
+        # new_data = unfold(data)
+        img = np.array(255 * unnormalize(x[0, :, :, :])).copy()
 
         # img = np.array(255 * unnormalize(x[0, :, :, :])).copy()
         img[img<0] = 0
         img[img>255] = 255
-        # img = np.transpose(img, (1, 2, 0))
+        img = np.transpose(img, (1, 2, 0))
         
         img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB)
 
         if epoch == 0:
             cv2.imwrite(saved_path + '/original.jpg', img)
-            y = new_data['annot'].numpy()
+            # y = new_data['annot'].numpy()
             y = data['annot'].numpy()
 
             for each_label in y:

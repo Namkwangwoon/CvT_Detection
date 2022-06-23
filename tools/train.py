@@ -211,6 +211,8 @@ def main():
         logging.info('=> {} validate start'.format(head))
         val_start = time.time()
 
+        model.eval()
+
         if epoch >= 0:
             # perf = test(
             #     config, valid_loader, model, criterion_eval,
@@ -219,12 +221,10 @@ def main():
             # )
             try:
                 visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
-                evaluate_coco(dataset_val, model)
+                # evaluate_coco(dataset_val, model)
             except Exception as e:
                 print(e)
                 print()
-        else:
-            model.eval()
 
         perf=0
         best_model = (perf > best_perf)

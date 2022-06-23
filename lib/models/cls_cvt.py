@@ -554,13 +554,13 @@ class ConvolutionalVisionTransformer(nn.Module):
         self.regressionModel = RegressionModel(256)
         self.classificationModel = ClassificationModel(256, num_classes=80)
 
-        prior = 0.01
+        # prior = 0.01
 
-        self.classificationModel.output.weight.data.fill_(0)
-        self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
+        # self.classificationModel.output.weight.data.fill_(0)
+        # self.classificationModel.output.bias.data.fill_(-math.log((1.0 - prior) / prior))
 
-        self.regressionModel.output.weight.data.fill_(0)
-        self.regressionModel.output.bias.data.fill_(0)
+        # self.regressionModel.output.weight.data.fill_(0)
+        # self.regressionModel.output.bias.data.fill_(0)
 
         self.anchors = Anchors()
         self.focalLoss = losses.FocalLoss()
