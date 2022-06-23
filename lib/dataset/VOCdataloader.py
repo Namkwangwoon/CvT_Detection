@@ -115,8 +115,9 @@ class VOCDataset(Dataset):
         nw, nh = int(scale * w), int(scale * h)
         image_resized = cv2.resize(image, (nw, nh))
 
-        pad_w = _pad - nw % _pad
-        pad_h = _pad - nh % _pad
+        # pad_w = _pad - nw % _pad
+        # pad_h = _pad - nh % _pad
+        pad_w, pad_h = 0, 0
 
         image_paded = np.zeros(shape=[nh + pad_h, nw + pad_w, 3], dtype=np.uint8)
         image_paded[:nh, :nw, :] = image_resized
