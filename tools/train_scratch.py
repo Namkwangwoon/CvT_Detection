@@ -100,6 +100,7 @@ def main():
 
     model = build_model(config)
     # model.load_state_dict(torch.load('OUTPUT/centerHead/cvt_transformer_17.pth'))
+    # model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_0.pth'))
     model.to(torch.device('cuda'))
 
     # copy model file
@@ -181,7 +182,8 @@ def main():
 
         model.eval()
         # visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
-
+        # detect(model, epoch, CLASSES_NAME)
+        
         if epoch >= config.TRAIN.EVAL_BEGIN_EPOCH:
             try:
                 # visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
@@ -196,7 +198,7 @@ def main():
         best_model = (perf > best_perf)
         best_perf = perf if best_model else best_perf
 
-        fname = f'cvt_transformer_{epoch}.pth'
+        fname = f'pascal_cvt_transformer_{epoch}.pth'
         fname_full = os.path.join(final_output_dir, fname)
         torch.save(
             model.module.state_dict() if args.distributed else model.state_dict(),

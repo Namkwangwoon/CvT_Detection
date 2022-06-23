@@ -682,8 +682,14 @@ class ConvolutionalVisionTransformer(nn.Module):
 
     @torch.no_grad()
     def inference(self, img, topK=40, return_hm=False, th=None, CLASSES_NAME=[]):
-        x = self.forward_features(img)
-        x = self.conv1(x)
+        x0, x1, x2 = self.forward_features(img)
+
+        x0 = self.avg1(x0)
+        x1 = torch.cat([x0, x1], dim=1)
+        x1 = self.avg2(x1)
+        x2 = torch.cat([x1, x2], dim=1)
+        x = self.avg3(x2)
+
         x = self.upsample(x)
         x = self.head(x)
 
