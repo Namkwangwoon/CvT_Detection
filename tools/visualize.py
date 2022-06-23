@@ -37,6 +37,8 @@ from utils.utils import save_checkpoint_on_master
 from utils.utils import save_model_on_master
 
 
+from dataset.VOCdataloader import VOCDataset
+
 from dataset.COCOdataloader import CocoDataset, Normalizer, UnNormalizer, Augmenter, Resizer, CSVDataset, AspectRatioBasedSampler, collater
 from torchvision import transforms
 from torch.utils.data import DataLoader
@@ -89,19 +91,31 @@ def main():
     model.training = False
     model.to(torch.device('cuda:0'))
     model.eval()
+    
+    
+    ### VOC dataset ###
+    
+    dataset_val = VOCDataset('DATASET/VOCdevkit/VOC2012', resize_size=(224, 224), mode='val')
+    valid_loader = DataLoader(dataset_val, batch_size=1, collate_fn=dataset_val.collate_fn)
+    
+    ###
+    
 
     ### COCO dataset ###
-    dataset_val = CocoDataset(args.coco_path, set_name='val2017',
-                                transform=transforms.Compose([Normalizer(), Resizer()]))
+    # dataset_val = CocoDataset(args.coco_path, set_name='val2017',
+    #                             transform=transforms.Compose([Normalizer(), Resizer()]))
 
-    # dataset_val = CocoDataset(args.coco_path, set_name='train2017',
-                                    # transform=transforms.Compose([Normalizer(), Resizer()]))
+    # # dataset_val = CocoDataset(args.coco_path, set_name='train2017',
+    #                                 # transform=transforms.Compose([Normalizer(), Resizer()]))
 
-    if dataset_val is not None:
-        # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=56, drop_last=False)
-        # valid_loader = DataLoader(dataset_val, num_workers=8, collate_fn=collater, batch_sampler=sampler_val)
-        sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
-        valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=sampler_val)
+    # if dataset_val is not None:
+    #     # sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=56, drop_last=False)
+    #     # valid_loader = DataLoader(dataset_val, num_workers=8, collate_fn=collater, batch_sampler=sampler_val)
+    #     sampler_val = AspectRatioBasedSampler(dataset_val, batch_size=1, drop_last=False)
+    #     valid_loader = DataLoader(dataset_val, num_workers=1, collate_fn=collater, batch_sampler=sampler_val)
+        
+    ###
+    
 
     # evaluate_coco(dataset_val, model)
 
@@ -118,6 +132,10 @@ def main():
                     y = y.contiguous(memory_format=torch.channels_last)
             
                 scores, classification, transformed_anchors = model(x)
+                
+            print()
+            print(idx, "th image")
+            print()
             
             print('============ TRANSFORMED_ANCHORS ============')
             print(transformed_anchors.shape)
@@ -157,7 +175,7 @@ def main():
             img = np.transpose(img, (1, 2, 0))
 
             img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB)
-            cv2.imwrite('original.jpg', img)
+            # cv2.imwrite('original.jpg', img)
 
             for j in range(idxs[0].shape[0]):
                 bbox = transformed_anchors[idxs[0][j], :]
@@ -165,17 +183,23 @@ def main():
                 y1 = int(bbox[1])
                 x2 = int(bbox[2])
                 y2 = int(bbox[3])
-                label_name = dataset_val.labels[int(classification[idxs[0][j]])]
+                # label_name = dataset_val.labels[int(classification[idxs[0][j]])]
                 # draw_caption(img, (x1, y1, x2, y2), label_name)
                 # print('box : ', (x1, y1, x2, y2))
 
                 cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 255, 255), thickness=1)
                 # print(label_name)
 
-            cv2.imwrite('result.jpg', img)
+
+            model_num = args.model_path.split('_')[-1][:-4]
+
+            cv2.imwrite('result_{}_{}.jpg'.format(model_num, idx), img)
             # cv2.imshow('img', img)
             # cv2.waitKey(0)
-        break
+            
+        if idx==50:
+           break
+        # break
 
 
 if __name__ == '__main__':
