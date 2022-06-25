@@ -115,11 +115,12 @@ class VOCDataset(Dataset):
         nw, nh = int(scale * w), int(scale * h)
         image_resized = cv2.resize(image, (nw, nh))
 
-        # pad_w = _pad - nw % _pad
-        # pad_h = _pad - nh % _pad
-        pad_w, pad_h = 0, 0
+        pad_w = _pad - nw % _pad
+        pad_h = _pad - nh % _pad
+        # pad_w, pad_h = 0, 0
 
-        image_paded = np.zeros(shape=[nh + pad_h, nw + pad_w, 3], dtype=np.uint8)
+        # image_paded = np.zeros(shape=[nh + pad_h, nw + pad_w, 3], dtype=np.uint8)
+        image_paded = np.zeros(shape=input_ksize+[3], dtype=np.uint8)
         image_paded[:nh, :nw, :] = image_resized
 
         if boxes is None:
@@ -298,3 +299,37 @@ class Transform(object):
         augmented = self.tsfm(image=img, bboxes=boxes, labels=labels)
         img, boxes = augmented['image'], augmented['bboxes']
         return img, boxes
+    
+# class Normalizer(object):
+    
+#     def __init__(self):
+#         self.mean = np.array([[[0.40789654, 0.44719302, 0.47026115]]])
+#         self.std = np.array([[[0.28863828, 0.27408164, 0.27809835]]])
+
+#     def __call__(self, sample):
+
+#         image, annots = sample['img'], sample['annot']
+
+#         return {'img':((image.astype(np.float32)-self.mean)/self.std), 'annot': annots}
+
+class UnNormalizer(object):
+    def __init__(self, mean=None, std=None):
+        if mean == None:
+            self.mean = [0.40789654, 0.44719302, 0.47026115]
+        else:
+            self.mean = mean
+        if std == None:
+            self.std = [0.28863828, 0.27408164, 0.27809835]
+        else:
+            self.std = std
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+        return tensor
