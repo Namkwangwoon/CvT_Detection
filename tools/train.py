@@ -139,6 +139,9 @@ def main():
     
     ds = VOCDataset('DATASET/VOCdevkit/VOC2012', resize_size=config.TRAIN.IMAGE_SIZE)
     train_loader = DataLoader(ds, batch_size=config.TRAIN.BATCH_SIZE_PER_GPU, collate_fn=ds.collate_fn)
+    
+    dataset_val = VOCDataset('DATASET/VOCdevkit/VOC2012', resize_size=config.TEST.IMAGE_SIZE, mode='val')
+    # valid_loader = DataLoader(dataset_val, batch_size=1, collate_fn=dataset_val.collate_fn)
 
     ### COCO dataset ###
     
@@ -205,10 +208,10 @@ def main():
 
         # train for one epoch
         logging.info('=> {} train start'.format(head))
-        with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
-            train_one_epoch(config, train_loader, model, criterion, optimizer,
-                            epoch, final_output_dir, tb_log_dir, writer_dict,
-                            scaler=scaler)
+        # with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
+        #     train_one_epoch(config, train_loader, model, criterion, optimizer,
+        #                     epoch, final_output_dir, tb_log_dir, writer_dict,
+        #                     scaler=scaler)
         logging.info(
             '=> {} train end, duration: {:.2f}s'
             .format(head, time.time()-start)
@@ -226,7 +229,10 @@ def main():
         #     # )
         #     try:
         #         model.eval()
-        #         visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
+        # visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
+        model.eval()
+        visualize_image(dataset_val[0], model, epoch, dataset_val.CLASSES_NAME)
+
         #         evaluate_coco(dataset_val, model)
         #     except Exception as e:
         #         print(e)

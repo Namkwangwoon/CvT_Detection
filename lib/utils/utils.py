@@ -21,7 +21,8 @@ import cv2
 import numpy as np
 import skimage
 from einops import rearrange
-from dataset.COCOdataloader import UnNormalizer
+# from dataset.COCOdataloader import UnNormalizer
+from dataset.VOCdataloader import UnNormalizer
 
 def setup_logger(final_output_dir, rank, phase):
     time_str = time.strftime('%Y-%m-%d-%H-%M')
@@ -226,8 +227,10 @@ def visualize_image(data, model, epoch, labels):
     unnormalize = UnNormalizer()
 
     with torch.no_grad():
-        x = data['img']
-        x = rearrange(x, 'h w c -> c h w')
+        # print(data[0].shape)
+        # x = data['img']
+        x = data[0]
+        # x = rearrange(x, 'h w c -> c h w')
         x = x.unsqueeze(0).float()
         x = x.cuda()
 
@@ -235,33 +238,33 @@ def visualize_image(data, model, epoch, labels):
         idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
         x = x.cpu()
 
-        new_data = unfold(data)
-        x = new_data['img']
-        img = np.array(255 * unnormalize(x[:, :, :])).copy()
+        # new_data = unfold(data)
+        # x = new_data['img']
+        # img = np.array(255 * unnormalize(x[:, :, :])).copy()
 
-        # img = np.array(255 * unnormalize(x[0, :, :, :])).copy()
+        img = np.array(255 * unnormalize(x[0, :, :, :])).copy()
         img[img<0] = 0
         img[img>255] = 255
-        # img = np.transpose(img, (1, 2, 0))
+        img = np.transpose(img, (1, 2, 0))
         
         img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB)
 
-        if epoch == 0:
-            cv2.imwrite(saved_path + '/original.jpg', img)
-            y = new_data['annot'].numpy()
-            y = data['annot'].numpy()
+        # if epoch == 0:
+        #     cv2.imwrite(saved_path + '/original.jpg', img)
+        #     # y = new_data['annot'].numpy()
+        #     y = data['annot'].numpy()
 
-            for each_label in y:
-                bbox = each_label[:4]
-                x1 = int(bbox[0])
-                y1 = int(bbox[1])
-                x2 = int(bbox[2])
-                y2 = int(bbox[3])
-                label_name = labels[int(each_label[4])]
-                draw_caption(img, (x1, y1, x2, y2), label_name)
-                cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 255, 255), thickness=1)
+        #     for each_label in y:
+        #         bbox = each_label[:4]
+        #         x1 = int(bbox[0])
+        #         y1 = int(bbox[1])
+        #         x2 = int(bbox[2])
+        #         y2 = int(bbox[3])
+        #         label_name = labels[int(each_label[4])]
+        #         draw_caption(img, (x1, y1, x2, y2), label_name)
+        #         cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 255, 255), thickness=1)
 
-            cv2.imwrite(saved_path + '/annotation.jpg', img)
+        #     cv2.imwrite(saved_path + '/annotation.jpg', img)
 
 
         for j in range(idxs[0].shape[0]):

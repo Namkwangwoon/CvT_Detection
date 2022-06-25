@@ -702,8 +702,8 @@ class ConvolutionalVisionTransformer(nn.Module):
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
         # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
         
-        return [x0, x1, x2]
-        # return x0
+        # return [x0, x1, x2]
+        return x2
 
     def forward(self, inputs):
         if self.training:
@@ -807,30 +807,85 @@ class PyramidFeatures(nn.Module):
         # self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
     def forward(self, inputs):
-        C3, C4, C5 = inputs
-        # C3 = inputs
+        # C3, C4, C5 = inputs
 
+        # P5_x = self.P5_1(C5)
+        # P5_upsampled_x = self.P5_upsampled(P5_x)
+        # P5_x = self.P5_2(P5_x)
+
+        # P4_x = self.P4_1(C4)
+        # P4_x = P5_upsampled_x + P4_x
+        # P4_upsampled_x = self.P4_upsampled(P4_x)
+        # P4_x = self.P4_2(P4_x)
+
+        # P3_x = self.P3_1(C3)
+        # P3_x = P3_x + P4_upsampled_x
+        # P3_x = self.P3_2(P3_x)
+
+        # # P6_x = self.P6(C5)
+
+        # # P7_x = self.P7_1(P6_x)
+        # # P7_x = self.P7_2(P7_x)
+
+        # # return [P3_x, P4_x, P5_x, P6_x, P7_x]
+        # return [P3_x, P4_x, P5_x]
+        # # return [P3_x]
+        
+        ### only x0 (56 x 56 x 64) ###
+        
+        # C3 = inputs
+        
+        # P3_x = self.P3_1(C3)
+        # P3_x = self.P3_2(P3_x)
+        
+        # return [P3_x]
+        
+        ###
+        # C3, C4, C5 = inputs
+
+        # P5_x = self.P5_1(C5)
+        # P5_upsampled_x = self.P5_upsampled(P5_x)
+        # P5_x = self.P5_2(P5_x)
+
+        # P4_x = self.P4_1(C4)
+        # P4_x = P5_upsampled_x + P4_x
+        # P4_upsampled_x = self.P4_upsampled(P4_x)
+        # P4_x = self.P4_2(P4_x)
+
+        # P3_x = self.P3_1(C3)
+        # P3_x = P3_x + P4_upsampled_x
+        # P3_x = self.P3_2(P3_x)
+
+        # # P6_x = self.P6(C5)
+
+        # # P7_x = self.P7_1(P6_x)
+        # # P7_x = self.P7_2(P7_x)
+
+        # # return [P3_x, P4_x, P5_x, P6_x, P7_x]
+        # return [P3_x, P4_x, P5_x]
+        # # return [P3_x]y x1 (28 x 28 x 192) ###
+        
+        # C4 = inputs
+        
+        # P4_x = self.P4_1(C4)
+        # P4_upsampled_x = self.P4_upsampled(P4_x)
+        # P4_x = self.P4_2(P4_x)
+        
+        # return [P4_x]
+        
+        ###
+        
+        ### only x2 (14 x 14x 384)
+        
+        C5 = inputs
+        
         P5_x = self.P5_1(C5)
         P5_upsampled_x = self.P5_upsampled(P5_x)
         P5_x = self.P5_2(P5_x)
-
-        P4_x = self.P4_1(C4)
-        P4_x = P5_upsampled_x + P4_x
-        P4_upsampled_x = self.P4_upsampled(P4_x)
-        P4_x = self.P4_2(P4_x)
-
-        P3_x = self.P3_1(C3)
-        P3_x = P3_x + P4_upsampled_x
-        P3_x = self.P3_2(P3_x)
-
-        # P6_x = self.P6(C5)
-
-        # P7_x = self.P7_1(P6_x)
-        # P7_x = self.P7_2(P7_x)
-
-        # return [P3_x, P4_x, P5_x, P6_x, P7_x]
-        return [P3_x, P4_x, P5_x]
-        # return [P3_x]
+        
+        return [P5_x]
+        
+        ###
 
 class ClassificationModel(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, num_classes=80, prior=0.01, feature_size=256):

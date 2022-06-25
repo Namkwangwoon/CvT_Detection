@@ -299,3 +299,37 @@ class Transform(object):
         augmented = self.tsfm(image=img, bboxes=boxes, labels=labels)
         img, boxes = augmented['image'], augmented['bboxes']
         return img, boxes
+    
+# class Normalizer(object):
+    
+#     def __init__(self):
+#         self.mean = np.array([[[0.40789654, 0.44719302, 0.47026115]]])
+#         self.std = np.array([[[0.28863828, 0.27408164, 0.27809835]]])
+
+#     def __call__(self, sample):
+
+#         image, annots = sample['img'], sample['annot']
+
+#         return {'img':((image.astype(np.float32)-self.mean)/self.std), 'annot': annots}
+
+class UnNormalizer(object):
+    def __init__(self, mean=None, std=None):
+        if mean == None:
+            self.mean = [0.40789654, 0.44719302, 0.47026115]
+        else:
+            self.mean = mean
+        if std == None:
+            self.std = [0.28863828, 0.27408164, 0.27809835]
+        else:
+            self.std = std
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+        return tensor
