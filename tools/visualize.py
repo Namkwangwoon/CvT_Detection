@@ -95,7 +95,7 @@ def main():
     
     ### VOC dataset ###
     
-    dataset_val = VOCDataset('DATASET/VOCdevkit/VOC2012', resize_size=(224, 224), mode='val')
+    dataset_val = VOCDataset('DATASET/VOCdevkit/VOC2012', resize_size=config.TEST.IMAGE_SIZE, mode='val')
     valid_loader = DataLoader(dataset_val, batch_size=1, collate_fn=dataset_val.collate_fn)
     
     ###
@@ -153,8 +153,8 @@ def main():
             print('============ SCORE ============')
             print(scores.shape)
             print(scores)
-            # print(torch.max(scores))  
-            print("mean score :", torch.mean(scores))
+            print("max score : ", torch.max(scores))  
+            # print("mean score :", torch.mean(scores))
             print()
 
             print('============ CLASSIFICATION ============')
@@ -197,9 +197,12 @@ def main():
             # cv2.imshow('img', img)
             # cv2.waitKey(0)
             
-        if idx==50:
-           break
-        # break
+        # # 50장 이미지 visualize
+        # if idx==50:
+        #    break
+        
+        # 1장 이미지 visualize
+        break
 
 
 if __name__ == '__main__':
