@@ -95,7 +95,7 @@ def main():
         save_config(config, output_config_path)
 
     model = build_model(config)
-    # model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/cvt_transformer_50.pth'))
+    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/lr_1e-5_VOC_fpn/cvt_transformer_70.pth'))
     model.to(torch.device('cuda'))
     
     ## model의 모든 가중치 학습
@@ -208,10 +208,10 @@ def main():
 
         # train for one epoch
         logging.info('=> {} train start'.format(head))
-        # with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
-        #     train_one_epoch(config, train_loader, model, criterion, optimizer,
-        #                     epoch, final_output_dir, tb_log_dir, writer_dict,
-        #                     scaler=scaler)
+        with torch.autograd.set_detect_anomaly(config.TRAIN.DETECT_ANOMALY):
+            train_one_epoch(config, train_loader, model, criterion, optimizer,
+                            epoch, final_output_dir, tb_log_dir, writer_dict,
+                            scaler=scaler)
         logging.info(
             '=> {} train end, duration: {:.2f}s'
             .format(head, time.time()-start)
@@ -231,7 +231,8 @@ def main():
         #         model.eval()
         # visualize_image(dataset_val[0], model, epoch, dataset_val.labels)
         model.eval()
-        visualize_image(dataset_val[0], model, epoch, dataset_val.CLASSES_NAME)
+        visualize_image(dataset_val[36], model, 36, epoch, dataset_val.CLASSES_NAME)
+        visualize_image(dataset_val[41], model, 41, epoch, dataset_val.CLASSES_NAME)
 
         #         evaluate_coco(dataset_val, model)
         #     except Exception as e:

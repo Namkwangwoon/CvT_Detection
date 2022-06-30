@@ -131,7 +131,7 @@ def main():
                     x = x.contiguous(memory_format=torch.channels_last)
                     y = y.contiguous(memory_format=torch.channels_last)
             
-                scores, classification, transformed_anchors = model(x)
+                scores, classification, transformed_anchors = model([x, idx, 100])
                 
             print()
             print(idx, "th image")
@@ -142,7 +142,6 @@ def main():
             print(transformed_anchors)
             print()
             
-            # idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
             idxs = np.where(scores.cpu()>0)
             print('============ TRANSFORMED_ANCHORS ============')
             print(idxs)
@@ -153,7 +152,7 @@ def main():
             print('============ SCORE ============')
             print(scores.shape)
             print(scores)
-            print("max score : ", torch.max(scores))  
+            # print("max score : ", torch.max(scores))  
             # print("mean score :", torch.mean(scores))
             print()
 
@@ -193,16 +192,17 @@ def main():
 
             model_num = args.model_path.split('_')[-1][:-4]
 
-            cv2.imwrite('result_{}_{}.jpg'.format(model_num, idx), img)
+            if idx in [36, 41]:
+                cv2.imwrite('{}th_result_{}epoch.jpg'.format(idx, model_num), img)
             # cv2.imshow('img', img)
             # cv2.waitKey(0)
             
         # # 50장 이미지 visualize
-        # if idx==50:
-        #    break
+        if idx==50:
+           break
         
         # 1장 이미지 visualize
-        break
+        # break
 
 
 if __name__ == '__main__':

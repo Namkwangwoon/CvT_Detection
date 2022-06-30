@@ -496,6 +496,26 @@ class VisionTransformer(nn.Module):
         return x, cls_tokens
 
 
+def show_fMap(feature_maps, index, epoch, stage='cvt'):
+    
+    if index not in [36, 41]:
+        return
+    
+    processed = []
+    for feature_map in feature_maps:
+       feature_map = feature_map.squeeze(0)
+       gray_scale = torch.sum(feature_map, 0)
+       gray_scale = gray_scale / feature_map.shape[0]
+       processed.append(gray_scale.data.cpu().numpy())
+
+    fig = plt.figure(figsize=(30, 50))
+    for i in range(len(processed)):
+        a = fig.add_subplot(5, 4, i+1)
+        imgplot = plt.imshow(processed[i])
+        a.axis("off")
+    plt.savefig(str('{}_feature_maps_{}_{}.jpg'.format(stage, epoch, index)), bbox_inches='tight')
+
+
 class ConvolutionalVisionTransformer(nn.Module):
     def __init__(self,
                  in_chans=3,
@@ -702,19 +722,22 @@ class ConvolutionalVisionTransformer(nn.Module):
         # x1 = nn.Conv2d(x1.shape[1], 256, kernel_size=1, stride=1).cuda()(x1)
         # x2 = nn.Conv2d(x2.shape[1], 256, kernel_size=1, stride=1).cuda()(x2)
         
-        # return [x0, x1, x2]
-        return x2
+        return [x0, x1, x2]
+        # return x0
 
     def forward(self, inputs):
         if self.training:
             img_batch, annotations = inputs
         else:
-            img_batch = inputs
+            img_batch, index, epoch = inputs
 
         # print('===== IMAGE_BATCH =====')
         # print()
 
         x = self.forward_features(img_batch)
+        
+        if not self.training:
+            show_fMap(x, index, epoch)
 
         # print('x0 : ', x.shape)
         # regression = self.regressionModel(x[0])
@@ -729,6 +752,9 @@ class ConvolutionalVisionTransformer(nn.Module):
         # print('regression : ', regression.shape)
         
         features = self.fpn(x)
+        
+        if not self.training:
+            show_fMap(features, index, epoch, stage='fpn')
 
         regression = torch.cat([self.regressionModel(feature) for feature in features], dim=1)
         
@@ -799,39 +825,40 @@ class PyramidFeatures(nn.Module):
         self.P3_1 = nn.Conv2d(C3_size, feature_size, kernel_size=1, stride=1, padding=0)
         self.P3_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
 
-        # # # "P6 is obtained via a 3x3 stride-2 conv on C5"
-        # self.P6 = nn.Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
+        # "P6 is obtained via a 3x3 stride-2 conv on C5"
+        self.P6 = nn.Conv2d(C5_size, feature_size, kernel_size=3, stride=2, padding=1)
 
-        # # # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
-        # self.P7_1 = nn.ReLU()
-        # self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
+        # "P7 is computed by applying ReLU followed by a 3x3 stride-2 conv on P6"
+        self.P7_1 = nn.ReLU()
+        self.P7_2 = nn.Conv2d(feature_size, feature_size, kernel_size=3, stride=2, padding=1)
 
     def forward(self, inputs):
-        # C3, C4, C5 = inputs
+        C3, C4, C5 = inputs
 
-        # P5_x = self.P5_1(C5)
-        # P5_upsampled_x = self.P5_upsampled(P5_x)
-        # P5_x = self.P5_2(P5_x)
+        P5_x = self.P5_1(C5)
+        P5_upsampled_x = self.P5_upsampled(P5_x)
+        P5_x = self.P5_2(P5_x)
 
-        # P4_x = self.P4_1(C4)
-        # P4_x = P5_upsampled_x + P4_x
-        # P4_upsampled_x = self.P4_upsampled(P4_x)
-        # P4_x = self.P4_2(P4_x)
+        P4_x = self.P4_1(C4)
+        P4_x = P5_upsampled_x + P4_x
+        P4_upsampled_x = self.P4_upsampled(P4_x)
+        P4_x = self.P4_2(P4_x)
 
-        # P3_x = self.P3_1(C3)
-        # P3_x = P3_x + P4_upsampled_x
-        # P3_x = self.P3_2(P3_x)
+        P3_x = self.P3_1(C3)
+        P3_x = P3_x + P4_upsampled_x
+        P3_x = self.P3_2(P3_x)
 
-        # # P6_x = self.P6(C5)
+        P6_x = self.P6(C5)
 
-        # # P7_x = self.P7_1(P6_x)
-        # # P7_x = self.P7_2(P7_x)
+        P7_x = self.P7_1(P6_x)
+        P7_x = self.P7_2(P7_x)
 
-        # # return [P3_x, P4_x, P5_x, P6_x, P7_x]
+        return [P3_x, P4_x, P5_x, P6_x, P7_x]
         # return [P3_x, P4_x, P5_x]
         # # return [P3_x]
         
-        ### only x0 (56 x 56 x 64) ###
+        
+        ##### only x0 (56 x 56 x 64) #####
         
         # C3 = inputs
         
@@ -841,29 +868,9 @@ class PyramidFeatures(nn.Module):
         # return [P3_x]
         
         ###
-        # C3, C4, C5 = inputs
-
-        # P5_x = self.P5_1(C5)
-        # P5_upsampled_x = self.P5_upsampled(P5_x)
-        # P5_x = self.P5_2(P5_x)
-
-        # P4_x = self.P4_1(C4)
-        # P4_x = P5_upsampled_x + P4_x
-        # P4_upsampled_x = self.P4_upsampled(P4_x)
-        # P4_x = self.P4_2(P4_x)
-
-        # P3_x = self.P3_1(C3)
-        # P3_x = P3_x + P4_upsampled_x
-        # P3_x = self.P3_2(P3_x)
-
-        # # P6_x = self.P6(C5)
-
-        # # P7_x = self.P7_1(P6_x)
-        # # P7_x = self.P7_2(P7_x)
-
-        # # return [P3_x, P4_x, P5_x, P6_x, P7_x]
-        # return [P3_x, P4_x, P5_x]
-        # # return [P3_x]y x1 (28 x 28 x 192) ###
+        
+        
+        ##### only x1 (28 x 28 x 192) #####
         
         # C4 = inputs
         
@@ -875,15 +882,16 @@ class PyramidFeatures(nn.Module):
         
         ###
         
-        ### only x2 (14 x 14x 384)
         
-        C5 = inputs
+        ##### only x2 (14 x 14x 384) #####
         
-        P5_x = self.P5_1(C5)
-        P5_upsampled_x = self.P5_upsampled(P5_x)
-        P5_x = self.P5_2(P5_x)
+        # C5 = inputs
         
-        return [P5_x]
+        # P5_x = self.P5_1(C5)
+        # P5_upsampled_x = self.P5_upsampled(P5_x)
+        # P5_x = self.P5_2(P5_x)
+        
+        # return [P5_x]
         
         ###
 
