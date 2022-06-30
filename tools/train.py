@@ -95,7 +95,6 @@ def main():
         save_config(config, output_config_path)
 
     model = build_model(config)
-    model.load_state_dict(torch.load('OUTPUT/imagenet/cvt-13-224x224/lr_1e-5_VOC_fpn/cvt_transformer_70.pth'))
     model.to(torch.device('cuda'))
     
     ## model의 모든 가중치 학습
