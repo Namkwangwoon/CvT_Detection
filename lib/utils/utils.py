@@ -219,8 +219,9 @@ def strip_prefix_if_present(state_dict, prefix):
         stripped_state_dict[key.replace(prefix, "")] = value
     return stripped_state_dict
 
-def visualize_image(data, model, epoch, labels):
-    saved_path = 'visualize'
+def visualize_image(data, model, index, epoch, labels):
+    
+    saved_path = 'fpn'
     if not os.path.exists(saved_path):
         os.mkdir(saved_path)
 
@@ -234,7 +235,7 @@ def visualize_image(data, model, epoch, labels):
         x = x.unsqueeze(0).float()
         x = x.cuda()
 
-        scores, classification, transformed_anchors = model(x)
+        scores, classification, transformed_anchors = model([x, index, epoch])
         idxs = np.where(scores.cpu()>torch.mean(scores.cpu()))
         x = x.cpu()
 
@@ -276,7 +277,7 @@ def visualize_image(data, model, epoch, labels):
             label_name = labels[int(classification[idxs[0][j]])]
             cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 255, 255), thickness=1)
 
-        cv2.imwrite(saved_path + '/result_{}.jpg'.format(epoch), img)
+        cv2.imwrite(saved_path + '/{}th_result_{}epoch.jpg'.format(index, epoch), img)
 
 def draw_caption(image, box, caption):
     b = np.array(box).astype(int)
